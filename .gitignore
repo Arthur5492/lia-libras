@@ -26,3 +26,7 @@ __pycache__/
 firestore-debug.log
 firebase-debug.log
 ui-debug.log
+
+# Local tools
+.claude/
+*.tsbuildinfo
