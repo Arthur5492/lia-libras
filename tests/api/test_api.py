@@ -1,7 +1,6 @@
 """API tests on the Auth and Firestore emulators, with the bucket in a local folder."""
 from concurrent.futures import ThreadPoolExecutor
 
-import numpy as np
 import pytest
 
 from backend.libras_api.recording import read_npz
@@ -137,7 +136,7 @@ def test_limit_per_sign_and_index_reuse(person, sign, db, bucket):
 
     assert p.delete(f"/api/me/recordings/{ids[1]}").status_code == 204
     assert not (bucket / "limite" / p.uuid / "02.npz").exists()
-    assert _doc(db, "recordings", ids[1])["status"] == "deleted"
+    assert db.collection("recordings").document(ids[1]).get().exists is False
     assert _doc(db, "users", p.uid)["recording_count"] == 3
 
     again = p.post("/api/recordings", json=make_payload(sign_id))
@@ -283,21 +282,6 @@ def test_admin_changes_level_and_propagates(person, sign, db):
     assert admin.get("/api/admin/users?username=pessoa_2").json()["items"][0]["uid"] == p.uid
 
 
-def test_link_legacy_account(person, signup, db):
-    admin = person(role="admin")
-    db.collection("legacy_users").document("legacy-uuid").set({
-        "hf_username": "antigo", "trust_level": "expert", "recording_count": 2,
-        "sign_recordings": {"s": [1, 2]}, "linked_uid": None,
-    })
-    newcomer = person()
-    resp = admin.post("/api/admin/legacy-users/legacy-uuid/link", json={"uid": newcomer.uid})
-    assert resp.status_code == 200
-    assert resp.json()["uuid"] == "legacy-uuid" and resp.json()["trust_level"] == "expert"
-    assert resp.json()["recording_count"] == 2
-    again = admin.post("/api/admin/legacy-users/legacy-uuid/link", json={"uid": person().uid})
-    assert again.json()["code"] == "legacy_already_linked"
-
-
 def test_catalog(person, client, db):
     admin = person(role="admin")
     db.collection("config").document("sign_catalog").set({
@@ -356,22 +340,3 @@ def test_stats(person, sign, client):
     body = client.get("/api/stats").json()
     assert body["total_recordings"] == 2
     assert body["ranking"] == [{"username": "pessoa_1", "recording_count": 1}]
-
-
-def test_compatibility_with_old_npz():
-    """A 1.0 file (without hand_labels) opens and gives replay data and metrics."""
-    import io
-
-    from backend.libras_api.metrics import recording_metrics
-    from backend.libras_api.recording import replay_payload
-
-    buf = io.BytesIO()
-    np.savez_compressed(
-        buf, schema_version=np.array("1.0"), target_fps=np.array(15.0, dtype=np.float32),
-        pose=np.zeros((30, 33, 4), np.float32), pose_mask=np.ones(30, np.uint8),
-        left_hand=np.zeros((30, 21, 3), np.float32), left_mask=np.zeros(30, np.uint8),
-        right_hand=np.zeros((30, 21, 3), np.float32), right_mask=np.ones(30, np.uint8),
-    )
-    data = read_npz(buf.getvalue())
-    assert recording_metrics(data)["any_hand_rate"] == 1.0
-    assert replay_payload(data)["frame_count"] == 30

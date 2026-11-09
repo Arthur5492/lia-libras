@@ -1,8 +1,4 @@
-"""Quality metrics and validation against reference profiles.
-
-The calculation is the same as in lia_libras_dataset/src/storage.py and
-adm_lia_libras_dataset/src/reference_profiles.py. This module joins the two.
-"""
+"""Quality metrics and validation against reference profiles."""
 from __future__ import annotations
 
 from typing import Any
