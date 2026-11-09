@@ -1,4 +1,4 @@
-"""Usernames, slugs e metadados de sinais."""
+"""Usernames, slugs and sign metadata."""
 from __future__ import annotations
 
 import re
@@ -26,7 +26,7 @@ def _ascii(text: str) -> str:
 
 
 def username_key(display: str, blocked_terms: list[str] | None = None) -> str:
-    """Valida o username e devolve a chave única (minúsculas, sem acentos)."""
+    """Validate the username and return the unique key (lowercase, no accents)."""
     display = (display or "").strip()
     if not USERNAME_DISPLAY_RE.fullmatch(display):
         raise NamingError("invalid_username")

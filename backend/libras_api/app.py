@@ -1,4 +1,4 @@
-"""Rotas da API. Toda escrita no Firestore e no bucket passa por aqui."""
+"""API routes. All writes to Firestore and to the bucket go through this module."""
 from __future__ import annotations
 
 import logging
@@ -63,7 +63,7 @@ def admin(caller: Annotated[Caller, Depends(current_user)]) -> Caller:
 Payload = Annotated[dict[str, Any], Body()]
 
 
-# ---------- público ----------
+# ---------- public ----------
 
 @app.get("/api/health")
 def health() -> dict:
@@ -82,7 +82,7 @@ def stats(response: Response) -> dict:
     return s.stats(get_db())
 
 
-# ---------- perfil ----------
+# ---------- profile ----------
 
 @app.get("/api/usernames/{username}/available")
 def username_available(username: str, _: Annotated[str, Depends(current_uid)]) -> dict:
@@ -110,7 +110,7 @@ def update_me(body: Payload, caller: Annotated[Caller, Depends(current_user)]) -
     return s.update_me(get_db(), caller.uid, bool(body.get("show_in_ranking", False)))
 
 
-# ---------- gravações ----------
+# ---------- recordings ----------
 
 @app.post("/api/recordings", status_code=201)
 def upload(body: Payload, caller: Annotated[Caller, Depends(current_user)], response: Response) -> dict:
@@ -137,7 +137,7 @@ def delete_recording(rec_id: str, caller: Annotated[Caller, Depends(current_user
     return Response(status_code=204)
 
 
-# ---------- análise ----------
+# ---------- review ----------
 
 @app.get("/api/review/recordings")
 def review_list(
@@ -165,7 +165,7 @@ def review_batch(body: Payload, caller: Annotated[Caller, Depends(reviewer)]) ->
     return {"items": s.review_batch(get_db(), caller.uid, caller.user, updates)}
 
 
-# ---------- administração ----------
+# ---------- administration ----------
 
 @app.get("/api/admin/users")
 def admin_users(

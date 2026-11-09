@@ -1,4 +1,4 @@
-"""Operações sobre Firestore e bucket. Esquema em contract/firestore.md."""
+"""Operations on Firestore and on the bucket. See the schema in contract/firestore.md."""
 from __future__ import annotations
 
 import time
@@ -45,6 +45,16 @@ def _iso(value: Any) -> str | None:
     return value.isoformat() if isinstance(value, datetime) else None
 
 
+def run_transaction(db: firestore.Client, fn, max_attempts: int = 10):
+    """Run a transactional function. If contention stops all attempts, send a retry code."""
+    try:
+        return fn(db.transaction(max_attempts=max_attempts))
+    except ValueError as exc:
+        if "Failed to commit transaction" not in str(exc):
+            raise
+        raise ApiError(409, "busy_retry") from exc
+
+
 def default_status(trust_level: str) -> str:
     return "trusted_unreviewed" if trust_level in REVIEWER_LEVELS else "unreviewed"
 
@@ -61,7 +71,7 @@ def is_admin(user: dict) -> bool:
     return user.get("role") == "admin"
 
 
-# ---------- perfil ----------
+# ---------- profile ----------
 
 def public_profile(uid: str, data: dict) -> dict:
     return {
@@ -126,11 +136,16 @@ def register(db: firestore.Client, uid: str, username: str, show_in_ranking: boo
         })
 
     try:
-        tx(db.transaction())
-    except (AlreadyExists, Conflict) as exc:
-        # Outra transação criou o mesmo username ou perfil ao mesmo tempo.
-        code = "already_registered" if user_ref.get().exists else "username_taken"
-        raise ApiError(409, code) from exc
+        run_transaction(db, tx)
+    except (AlreadyExists, Conflict, ApiError) as exc:
+        if isinstance(exc, ApiError) and exc.code != "busy_retry":
+            raise
+        # Another transaction created the same username or profile at the same time.
+        if user_ref.get().exists:
+            raise ApiError(409, "already_registered") from exc
+        if name_ref.get().exists:
+            raise ApiError(409, "username_taken") from exc
+        raise ApiError(409, "busy_retry") from exc
     return public_profile(uid, user_ref.get().to_dict())
 
 
@@ -140,7 +155,7 @@ def update_me(db: firestore.Client, uid: str, show_in_ranking: bool) -> dict:
     return public_profile(uid, ref.get().to_dict())
 
 
-# ---------- catálogo e estatísticas ----------
+# ---------- catalog and statistics ----------
 
 def _catalog_config(db: firestore.Client) -> dict:
     snap = db.collection(CONFIG).document("sign_catalog").get()
@@ -194,7 +209,7 @@ def stats(db: firestore.Client, ranking_size: int = 20) -> dict:
     }
 
 
-# ---------- gravações ----------
+# ---------- recordings ----------
 
 def public_recording(rec_id: str, data: dict) -> dict:
     return {
@@ -324,7 +339,7 @@ def upload(db: firestore.Client, storage: Storage, settings: Settings, uid: str,
         })
         return "reserved", ref.id, idx
 
-    state, rec_id, value = reserve(db.transaction())
+    state, rec_id, value = run_transaction(db, reserve)
     rec_ref = db.collection(RECORDINGS).document(rec_id)
     if state == "done":
         return {"recording": public_recording(rec_id, value), "replay": None, "duplicate": True}
@@ -348,7 +363,7 @@ def upload(db: firestore.Client, storage: Storage, settings: Settings, uid: str,
         t.update(user_ref, {"recording_count": firestore.Increment(1)})
         t.update(sign_ref, {"recording_count": firestore.Increment(1)})
 
-    finalize(db.transaction())
+    run_transaction(db, finalize)
     replay = replay_payload({**data, "target_fps": 15.0})
     return {"recording": public_recording(rec_id, rec_ref.get().to_dict()), "replay": replay, "duplicate": False}
 
@@ -364,7 +379,7 @@ def _release(db: firestore.Client, rec_ref, user_ref, sign_id: str, idx: int) ->
         sign_recordings[sign_id] = [i for i in sign_recordings.get(sign_id, []) if i != idx]
         t.update(user_ref, {"sign_recordings": sign_recordings})
 
-    tx(db.transaction())
+    run_transaction(db, tx)
 
 
 def _visible_recording(db: firestore.Client, rec_id: str) -> tuple[Any, dict]:
@@ -433,10 +448,10 @@ def delete_own(db: firestore.Client, storage: Storage, uid: str, user: dict, rec
             "reference_count": firestore.Increment(-int(bool(current.get("counts_as_reference")))),
         })
 
-    tx(db.transaction())
+    run_transaction(db, tx)
 
 
-# ---------- análise ----------
+# ---------- review ----------
 
 def _uuid_for_username(db: firestore.Client, username: str) -> str | None:
     try:
@@ -524,11 +539,11 @@ def review_batch(db: firestore.Client, uid: str, user: dict, updates: list[dict]
             if any(delta.values()):
                 t.update(db.collection(SIGNS).document(sign_id), {k: firestore.Increment(v) for k, v in delta.items()})
 
-    tx(db.transaction())
+    run_transaction(db, tx)
     return [public_recording(rec_id, ref.get().to_dict()) for rec_id, ref in refs.items()]
 
 
-# ---------- administração ----------
+# ---------- administration ----------
 
 def admin_users(db: firestore.Client, username: str | None, cursor: str | None, page_size: int) -> dict:
     if username:
@@ -580,7 +595,7 @@ def admin_update_user(db: firestore.Client, admin_uid: str, uid: str, changes: d
 
 
 def _propagate_trust(db: firestore.Client, person: str, trust: str) -> None:
-    """Copia o nível novo para as gravações da pessoa e ajusta os contadores."""
+    """Copy the new trust level to the recordings of the person and adjust the counters."""
     query = db.collection(RECORDINGS).where(filter=FieldFilter("uuid", "==", person))
     deltas: dict[str, int] = defaultdict(int)
     batch, pending = db.batch(), 0
@@ -647,7 +662,7 @@ def link_legacy(db: firestore.Client, legacy_uuid: str, uid: str) -> dict:
         })
         t.update(legacy_ref, {"linked_uid": uid})
 
-    tx(db.transaction())
+    run_transaction(db, tx)
     return public_profile(uid, user_ref.get().to_dict())
 
 
@@ -736,7 +751,7 @@ def rebuild_reference_profiles(db: firestore.Client, storage: Storage, min_refer
         total += 1
         try:
             grouped[snap.get("sign_id")].append(m.recording_metrics(read_npz(storage.get(snap.get("path")))))
-        except Exception as exc:  # um arquivo ruim não impede o resto
+        except Exception as exc:  # One bad file does not stop the others.
             errors.append({"id": snap.id, "error": type(exc).__name__})
     data = {
         "schema_version": "1.0",

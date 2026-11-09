@@ -1,4 +1,4 @@
-"""Testes sem emulador: mãos, formato do .npz e nomes."""
+"""Tests without emulators: hands, .npz format and names."""
 import numpy as np
 import pytest
 
@@ -13,20 +13,20 @@ def _arrays(payload):
     return data
 
 
-def test_mao_no_canal_errado_volta_para_o_pulso_certo():
+def test_hand_in_wrong_channel_moves_to_correct_wrist():
     data = _arrays(make_payload("s", swap_channels=True))
     assert data["right_mask"].all() and not data["left_mask"].any()
-    # o rótulo do detector acompanha a mão
+    # The detector label moves with the hand.
     assert (data["hand_labels"][:, 1] == 1).all()
 
 
-def test_duas_maos_nunca_caem_no_mesmo_canal():
+def test_two_hands_never_share_a_channel():
     data = _arrays(make_payload("s", two_hands=True, swap_channels=True))
     assert data["left_mask"].all() and data["right_mask"].all()
     assert np.allclose(data["left_hand"][:, 0, :2], [0.65, 0.60])
 
 
-def test_regra_e_idempotente():
+def test_assignment_is_idempotent():
     data = _arrays(make_payload("s", two_hands=True, swap_channels=True))
     again = assign_hands(
         data["pose"], data["pose_mask"], data["left_hand"], data["left_mask"],
@@ -36,7 +36,7 @@ def test_regra_e_idempotente():
         assert np.array_equal(again[key], data[key])
 
 
-def test_sem_pose_mantem_a_continuidade():
+def test_no_pose_keeps_continuity():
     payload = make_payload("s", two_hands=True)
     for i in range(10, 15):
         payload["pose"][i] = None
@@ -45,13 +45,13 @@ def test_sem_pose_mantem_a_continuidade():
     assert np.allclose(data["left_hand"][10:15, 0, :2], [0.65, 0.60])
 
 
-def test_sem_pose_e_sem_historico_mantem_o_canal_original():
+def test_no_pose_and_no_history_keeps_source_channel():
     payload = make_payload("s", pose_missing=30)
     data = _arrays(payload)
     assert data["right_mask"].all() and not data["left_mask"].any()
 
 
-def test_mao_ativa():
+def test_active_hand():
     data = _arrays(make_payload("s", two_hands=True))
     assert active_hand(data["left_hand"], data["left_mask"], data["right_hand"], data["right_mask"]) == "right"
     empty = np.zeros((30, 21, 3), np.float32)
@@ -65,7 +65,7 @@ def test_mao_ativa():
     (lambda p: p["left_hand"].__setitem__(0, [[0, 0, 0]] * 20), "invalid_left_hand_shape"),
     (lambda p: p.update(hand_labels=[["Up", None]] * 30), "invalid_hand_labels"),
 ])
-def test_envio_fora_do_formato(change, code):
+def test_bad_upload_format(change, code):
     payload = make_payload("s")
     change(payload)
     with pytest.raises(PayloadError) as exc:
@@ -73,7 +73,7 @@ def test_envio_fora_do_formato(change, code):
     assert exc.value.code == code
 
 
-def test_npz_segue_o_contrato_1_1():
+def test_npz_follows_contract_1_1():
     data = _arrays(make_payload("s", two_hands=True))
     npz = read_npz(to_npz_bytes(data, "sign-uuid", 3, "test"))
     expected = {

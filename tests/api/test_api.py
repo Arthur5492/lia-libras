@@ -1,4 +1,4 @@
-"""Testes da API nos emuladores de Auth e Firestore, com bucket em pasta local."""
+"""API tests on the Auth and Firestore emulators, with the bucket in a local folder."""
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -14,9 +14,9 @@ def _doc(db, collection, doc_id):
     return db.collection(collection).document(doc_id).get().to_dict()
 
 
-# ---------- cadastro ----------
+# ---------- registration ----------
 
-def test_sem_token_e_sem_cadastro(client, signup):
+def test_no_token_and_no_profile(client, signup):
     assert client.get("/api/me").json()["code"] == "missing_token"
     assert client.get("/api/me", headers={"Authorization": "Bearer x"}).json()["code"] == "invalid_token"
     p = signup()
@@ -24,7 +24,7 @@ def test_sem_token_e_sem_cadastro(client, signup):
     assert resp.status_code == 403 and resp.json()["code"] == "not_registered"
 
 
-def test_cadastro(signup, db):
+def test_registration(signup, db):
     p = signup()
     assert p.get("/api/usernames/Jose_1/available").json() == {"username_key": "jose_1", "available": True}
     resp = p.post("/api/me", json={"username": "José_1", "consent_version": "v1"})
@@ -43,7 +43,7 @@ def test_cadastro(signup, db):
     assert other.post("/api/me", json={"username": "semtermo"}).json()["code"] == "consent_required"
 
 
-def test_username_concorrente_so_um_ganha(signup, db):
+def test_concurrent_username_only_one_wins(signup, db):
     people = [signup() for _ in range(6)]
 
     def attempt(p):
@@ -55,7 +55,7 @@ def test_username_concorrente_so_um_ganha(signup, db):
     assert len(list(db.collection("users").stream())) == 1
 
 
-def test_nao_altera_o_proprio_nivel(person, db):
+def test_cannot_change_own_trust_level(person, db):
     p = person()
     p.patch("/api/me", json={"show_in_ranking": True, "trust_level": "expert", "role": "admin"})
     data = _doc(db, "users", p.uid)
@@ -83,13 +83,13 @@ def test_upload(person, sign, db, bucket):
     assert _doc(db, "signs", sign_id)["recording_count"] == 1
 
 
-def test_nivel_define_status_inicial(person, sign):
+def test_trust_level_sets_initial_status(person, sign):
     sign_id = sign()
     resp = person("trusted").post("/api/recordings", json=make_payload(sign_id))
     assert resp.json()["recording"]["status"] == "trusted_unreviewed"
 
 
-def test_reenvio_nao_duplica(person, sign, db):
+def test_retry_does_not_duplicate(person, sign, db):
     p = person()
     sign_id = sign()
     payload = make_payload(sign_id)
@@ -101,7 +101,7 @@ def test_reenvio_nao_duplica(person, sign, db):
     assert _doc(db, "signs", sign_id)["recording_count"] == 1
 
 
-def test_client_id_de_outra_pessoa(person, sign):
+def test_client_id_of_another_person(person, sign):
     sign_id = sign()
     payload = make_payload(sign_id)
     person().post("/api/recordings", json=payload)
@@ -109,7 +109,7 @@ def test_client_id_de_outra_pessoa(person, sign):
     assert resp.status_code == 409 and resp.json()["code"] == "client_id_conflict"
 
 
-def test_gravacao_ruim_nao_e_salva(person, sign, db, bucket):
+def test_bad_recording_is_not_saved(person, sign, db, bucket):
     p = person()
     sign_id = sign("ruim")
     resp = p.post("/api/recordings", json=make_payload(sign_id, pose_missing=10, hand_missing=25))
@@ -121,14 +121,14 @@ def test_gravacao_ruim_nao_e_salva(person, sign, db, bucket):
     assert list(db.collection("recordings").stream()) == []
 
 
-def test_sinal_inexistente_ou_inativo(person, sign):
+def test_unknown_or_inactive_sign(person, sign):
     p = person()
     for sign_id in ("nao-existe", sign("parado", active=False)):
         resp = p.post("/api/recordings", json=make_payload(sign_id))
         assert resp.status_code == 422 and resp.json()["code"] == "unknown_sign"
 
 
-def test_limite_por_sinal_e_reaproveitamento(person, sign, db, bucket):
+def test_limit_per_sign_and_index_reuse(person, sign, db, bucket):
     p = person()
     sign_id = sign("limite")
     ids = [p.post("/api/recordings", json=make_payload(sign_id)).json()["recording"]["id"] for _ in range(4)]
@@ -146,8 +146,8 @@ def test_limite_por_sinal_e_reaproveitamento(person, sign, db, bucket):
     assert len(p.get("/api/me/recordings").json()["items"]) == 4
 
 
-def test_nao_reusa_indice_ocupado_fora_do_mapa(person, sign, db):
-    """Gravação existente que o mapa do usuário não conhece (ex.: migração) não é sobrescrita."""
+def test_does_not_reuse_index_missing_from_map(person, sign, db):
+    """Do not overwrite a recording that the user map does not know (for example, after migration)."""
     p = person()
     sign_id = sign()
     db.collection("recordings").document(f"{p.uuid}_{sign_id}_01").set({"status": "accepted", "uuid": p.uuid})
@@ -156,14 +156,14 @@ def test_nao_reusa_indice_ocupado_fora_do_mapa(person, sign, db):
     assert _doc(db, "recordings", f"{p.uuid}_{sign_id}_01")["status"] == "accepted"
 
 
-def test_falha_no_bucket_libera_o_indice(person, sign, db, monkeypatch):
+def test_bucket_failure_releases_index(person, sign, db, monkeypatch):
     from backend.libras_api.storage import get_storage
 
     p = person()
     sign_id = sign()
 
     def broken(*_):
-        raise OSError("fora do ar")
+        raise OSError("unavailable")
 
     monkeypatch.setattr(get_storage(), "put", broken)
     resp = p.post("/api/recordings", json=make_payload(sign_id))
@@ -172,7 +172,7 @@ def test_falha_no_bucket_libera_o_indice(person, sign, db, monkeypatch):
     assert list(db.collection("recordings").stream()) == []
 
 
-def test_apagar_so_a_propria(person, sign):
+def test_delete_only_own(person, sign):
     sign_id = sign()
     owner, other = person(), person()
     rec_id = owner.post("/api/recordings", json=make_payload(sign_id)).json()["recording"]["id"]
@@ -191,9 +191,9 @@ def test_replay(person, sign):
     assert reviewer.get(f"/api/recordings/{rec_id}/replay").status_code == 200
 
 
-# ---------- análise ----------
+# ---------- review ----------
 
-def test_permissoes_de_revisao(person, sign, db):
+def test_review_permissions(person, sign, db):
     sign_id = sign()
     regular, trusted, expert = person(), person("trusted"), person("expert")
     own = trusted.post("/api/recordings", json=make_payload(sign_id)).json()["recording"]["id"]
@@ -209,7 +209,7 @@ def test_permissoes_de_revisao(person, sign, db):
     assert resp.status_code == 200, resp.text
     assert _doc(db, "recordings", own)["reviewed_by"] == expert.uid
     assert _doc(db, "signs", sign_id)["accepted_count"] == 1
-    # quem gravou é trusted, então aceitar não vira referência
+    # The author is trusted, so an accepted recording is not a reference.
     assert _doc(db, "signs", sign_id)["reference_count"] == 0
 
     trusted.patch("/api/review/recordings", json={"updates": [{"id": rec, "status": "pending"}]})
@@ -217,7 +217,7 @@ def test_permissoes_de_revisao(person, sign, db):
     assert _doc(db, "recordings", rec)["reviewed_by"] is None
 
 
-def test_referencia_e_contadores(person, sign, db):
+def test_reference_and_counters(person, sign, db):
     sign_id = sign()
     expert, reviewer = person("expert"), person("trusted")
     rec = expert.post("/api/recordings", json=make_payload(sign_id)).json()["recording"]["id"]
@@ -229,7 +229,7 @@ def test_referencia_e_contadores(person, sign, db):
     assert (counters["recording_count"], counters["accepted_count"], counters["reference_count"]) == (0, 0, 0)
 
 
-def test_lista_de_analise(person, sign, db):
+def test_review_list(person, sign, db):
     a, b = sign("a"), sign("b")
     p1, p2, reviewer = person(), person(), person("trusted")
     for _ in range(2):
@@ -258,9 +258,9 @@ def test_lista_de_analise(person, sign, db):
     assert len(rest["items"]) == 1 and rest["next_cursor"] is None
 
 
-# ---------- administração ----------
+# ---------- administration ----------
 
-def test_admin_muda_nivel_e_propaga(person, sign, db):
+def test_admin_changes_level_and_propagates(person, sign, db):
     sign_id = sign()
     admin, p, reviewer = person(role="admin"), person(), person("trusted")
     assert p.get("/api/admin/users").json()["code"] == "admin_only"
@@ -283,7 +283,7 @@ def test_admin_muda_nivel_e_propaga(person, sign, db):
     assert admin.get("/api/admin/users?username=pessoa_2").json()["items"][0]["uid"] == p.uid
 
 
-def test_vincular_conta_antiga(person, signup, db):
+def test_link_legacy_account(person, signup, db):
     admin = person(role="admin")
     db.collection("legacy_users").document("legacy-uuid").set({
         "hf_username": "antigo", "trust_level": "expert", "recording_count": 2,
@@ -298,7 +298,7 @@ def test_vincular_conta_antiga(person, signup, db):
     assert again.json()["code"] == "legacy_already_linked"
 
 
-def test_catalogo(person, client, db):
+def test_catalog(person, client, db):
     admin = person(role="admin")
     db.collection("config").document("sign_catalog").set({
         "schema_version": "1.0", "sign_metadata_schema": {"is_dynamic": {"type": "boolean", "label": "Dinâmico"}},
@@ -327,7 +327,7 @@ def test_catalogo(person, client, db):
     assert schema["signs"][0]["sign_metadata"] == {"is_two_handed": False}
 
 
-def test_perfis_de_referencia(person, sign, db):
+def test_reference_profiles(person, sign, db):
     sign_id = sign()
     admin, expert = person(role="admin"), person("expert")
     recs = [expert.post("/api/recordings", json=make_payload(sign_id)).json()["recording"]["id"] for _ in range(3)]
@@ -338,7 +338,7 @@ def test_perfis_de_referencia(person, sign, db):
     assert profile["reference_count"] == 3 and profile["min_any_hand_rate"] == 1.0
     assert built["build"]["errors"] == []
 
-    # com o perfil ativo, uma gravação parada recebe aviso, mas é salva
+    # With an active profile, a static recording gets a warning, but the API saves it.
     still = make_payload(sign_id)
     for frame in still["right_hand"]:
         for point in frame:
@@ -348,7 +348,7 @@ def test_perfis_de_referencia(person, sign, db):
     assert "low_motion_reference" in resp.json()["recording"]["validation_flags"]
 
 
-def test_estatisticas(person, sign, client):
+def test_stats(person, sign, client):
     sign_id = sign()
     shown, hidden = person(show_in_ranking=True), person()
     shown.post("/api/recordings", json=make_payload(sign_id))
@@ -358,8 +358,8 @@ def test_estatisticas(person, sign, client):
     assert body["ranking"] == [{"username": "pessoa_1", "recording_count": 1}]
 
 
-def test_compatibilidade_com_npz_antigo():
-    """Arquivo 1.0 (sem hand_labels) abre e gera replay e métricas."""
+def test_compatibility_with_old_npz():
+    """A 1.0 file (without hand_labels) opens and gives replay data and metrics."""
     import io
 
     from backend.libras_api.metrics import recording_metrics

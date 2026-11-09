@@ -1,4 +1,4 @@
-// Testes das regras do Firestore. Rodar com:
+// Tests for the Firestore rules. Run with:
 //   npx firebase emulators:exec --only firestore "npm --prefix tests/firestore-rules test"
 import { after, before, beforeEach, test } from "node:test";
 import { readFileSync } from "node:fs";
@@ -38,34 +38,34 @@ beforeEach(async () => {
 const alice = () => env.authenticatedContext("alice").firestore();
 const anon = () => env.unauthenticatedContext().firestore();
 
-test("lê o próprio perfil", async () => {
+test("reads own profile", async () => {
   await assertSucceeds(getDoc(doc(alice(), "users/alice")));
 });
 
-test("não lê o perfil de outra pessoa", async () => {
+test("cannot read the profile of another person", async () => {
   await assertFails(getDoc(doc(alice(), "users/bob")));
 });
 
-test("não lista usuários", async () => {
+test("cannot list users", async () => {
   await assertFails(getDocs(collection(alice(), "users")));
 });
 
-test("não altera o próprio nível", async () => {
+test("cannot change own trust level", async () => {
   await assertFails(updateDoc(doc(alice(), "users/alice"), { trust_level: "expert" }));
 });
 
-test("não cria o próprio perfil nem reserva username", async () => {
+test("cannot create own profile or reserve a username", async () => {
   const db = env.authenticatedContext("carol").firestore();
   await assertFails(setDoc(doc(db, "users/carol"), { uuid: "x", trust_level: "expert" }));
   await assertFails(setDoc(doc(db, "usernames/carol"), { uid: "carol" }));
 });
 
-test("sem login não lê nada", async () => {
+test("cannot read anything without sign-in", async () => {
   await assertFails(getDoc(doc(anon(), "users/alice")));
   await assertFails(getDoc(doc(anon(), "signs/s1")));
 });
 
-test("não lê nem escreve gravações, sinais, usernames e config", async () => {
+test("cannot read or write recordings, signs, usernames or config", async () => {
   const db = alice();
   for (const path of ["recordings/u-alice_s1_01", "signs/s1", "usernames/alice", "config/reference_profiles"]) {
     await assertFails(getDoc(doc(db, path)));

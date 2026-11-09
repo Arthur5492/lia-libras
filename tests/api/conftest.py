@@ -1,4 +1,4 @@
-"""Testes da API. Os de integração precisam dos emuladores:
+"""API tests. The integration tests need the emulators:
 
     npx --prefix tests/firestore-rules firebase emulators:exec --only auth,firestore \
         --project demo-libras ".venv/Scripts/python -m pytest"
@@ -25,17 +25,17 @@ PROJECT = os.environ["LIA_FIREBASE_PROJECT_ID"]
 def pytest_collection_modifyitems(config, items):
     if EMULATED:
         return
-    skip = pytest.mark.skip(reason="emuladores do Firebase não estão rodando")
+    skip = pytest.mark.skip(reason="Firebase emulators are not running")
     for item in items:
         if "emulator" in item.keywords:
             item.add_marker(skip)
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "emulator: precisa dos emuladores de Auth e Firestore")
+    config.addinivalue_line("markers", "emulator: needs the Auth and Firestore emulators")
 
 
-# ---------- dados sintéticos ----------
+# ---------- synthetic data ----------
 
 LEFT_WRIST_XY = (0.65, 0.60)
 RIGHT_WRIST_XY = (0.35, 0.60)
@@ -55,7 +55,7 @@ def make_payload(
     swap_channels: bool = False,
     two_hands: bool = False,
 ) -> dict:
-    """Mão direita (pose 16) se movendo; opcionalmente a esquerda parada."""
+    """Make a moving right hand (pose 16) and, as an option, a static left hand."""
     pose, left, right, labels = [], [], [], []
     for i in range(frames):
         dx = 0.004 * i
@@ -73,7 +73,7 @@ def make_payload(
         l_slot, r_slot = (moving, still) if swap_channels else (still, moving)
         left.append(l_slot)
         right.append(r_slot)
-        # O detector põe cada mão no canal do próprio rótulo; com swap, o rótulo está errado.
+        # The detector puts each hand in the channel of its label. With swap, the label is wrong.
         labels.append(["Left" if l_slot else None, "Right" if r_slot else None])
     return {
         "client_id": client_id or str(uuid.uuid4()),
@@ -87,7 +87,7 @@ def make_payload(
     }
 
 
-# ---------- emuladores ----------
+# ---------- emulators ----------
 
 @pytest.fixture
 def emulator():
@@ -155,7 +155,7 @@ def signup(client, emulator):
         email = f"{uuid.uuid4().hex[:10]}@example.com"
         resp = requests.post(
             f"http://{emulator['auth']}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key",
-            json={"email": email, "password": "senha-de-teste", "returnSecureToken": True},
+            json={"email": email, "password": "test-password", "returnSecureToken": True},
         )
         resp.raise_for_status()
         data = resp.json()
@@ -166,7 +166,7 @@ def signup(client, emulator):
 
 @pytest.fixture
 def person(signup, db):
-    """Cria e cadastra uma pessoa; nível e papel são ajustados direto no banco."""
+    """Create and register a person. Set the trust level and role directly in the database."""
     counter = iter(range(1, 1000))
 
     def _person(trust_level: str = "regular", role: str = "user", show_in_ranking: bool = False) -> Person:

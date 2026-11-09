@@ -1,139 +1,140 @@
-# Contrato: esquema do Firestore
+# Contract: Firestore schema
 
-O Firestore guarda pessoas e metadados. Os `.npz` ficam no bucket (ver [npz.md](npz.md)).
+Firestore keeps persons and metadata. The `.npz` files stay in the bucket (see [npz.md](npz.md)).
 
-## Princípios
-- **Toda escrita passa pela API**, com o Admin SDK. O navegador só lê o próprio perfil (`firestore.rules`).
-- **Nada de dado pessoal no bucket.** O e-mail fica só no Firebase Auth e não é copiado para o Firestore.
-- **Datas** são `timestamp` do Firestore, em UTC.
-- **Dados repetidos de propósito**, porque não há `JOIN`: o `user_trust_level` vai em cada gravação; mudar o nível de alguém atualiza as gravações dela em lote.
-- **Contadores** são atualizados na mesma transação da escrita, para evitar contar documentos e gastar a cota.
+## Principles
+- **All writes go through the API**, with the Admin SDK. The browser can only read its own profile (`firestore.rules`).
+- **No personal data in the bucket.** The email stays only in Firebase Auth. Do not copy it to Firestore.
+- **Dates** are Firestore `timestamp` values, in UTC.
+- **Some data is repeated on purpose**, because Firestore has no `JOIN`. Each recording has a copy of `user_trust_level`. When the trust level of a person changes, update all recordings of that person in a batch.
+- **Counters** change in the same transaction as the write. Thus, you do not count documents, and you use less quota.
 
 ## `users/{uid}`
-`uid` é o do Firebase Auth.
+`uid` is the Firebase Auth uid.
 
-| Campo | Tipo | Notas |
+| Field | Type | Notes |
 |---|---|---|
-| `uuid` | string | UUID v4 do dataset, imutável. Contas antigas vinculadas recebem o uuid antigo |
-| `username` | string | Como a pessoa digitou |
-| `username_key` | string | Forma normalizada, chave de `usernames` |
-| `role` | `user` \| `admin` | `admin` gerencia usuários e catálogo |
-| `trust_level` | `regular` \| `trusted` \| `expert` | Só admin altera |
-| `show_in_ranking` | bool | Padrão `false` |
-| `consent_version` | string | Versão do termo aceito |
+| `uuid` | string | Dataset UUID v4. Do not change it. A linked old account gets the old uuid |
+| `username` | string | As the person typed it |
+| `username_key` | string | Normalized form, key of `usernames` |
+| `role` | `user` \| `admin` | `admin` manages users and the catalog |
+| `trust_level` | `regular` \| `trusted` \| `expert` | Only an admin can change it |
+| `show_in_ranking` | bool | Default `false` |
+| `consent_version` | string | Version of the accepted consent form |
 | `consent_at` | timestamp | |
-| `recording_count` | int | Gravações não apagadas |
-| `sign_recordings` | map | `{sign_id: [índices]}`, para escolher o próximo índice sem ler gravações. Fora dos índices de busca |
-| `legacy_hf_username` | string, opcional | Só em contas vinculadas |
+| `recording_count` | int | Recordings that are not deleted |
+| `sign_recordings` | map | `{sign_id: [indexes]}`. The API uses it to find the next index without a read of the recordings. Not indexed |
+| `legacy_hf_username` | string, optional | Only on linked accounts |
 | `created_at`, `updated_at` | timestamp | |
 
 ## `usernames/{username_key}`
-Reserva de nome único, criada na mesma transação do perfil.
+Reservation of a unique name. The API creates it in the same transaction as the profile.
 
-| Campo | Tipo | Notas |
+| Field | Type | Notes |
 |---|---|---|
-| `uid` | string \| null | Dono atual |
-| `legacy_uuid` | string, opcional | Nome reservado de conta antiga ainda não vinculada |
+| `uid` | string \| null | Current owner |
+| `legacy_uuid` | string, optional | Name reserved for an old account that is not linked |
 | `created_at` | timestamp | |
 
-Regras do nome: 3 a 20 caracteres, letras, números e `_`. `username_key` = minúsculas, sem acentos. Nomes reservados (como `admin`) ficam no código; termos ofensivos ficam em `config/username_blocklist.terms` e bloqueiam qualquer username que os contenha.
+Name rules: 3 to 20 characters, letters, digits and `_`. `username_key` = lowercase, no accents. Reserved names (such as `admin`) are in the code. Offensive terms are in `config/username_blocklist.terms`. A username that contains one of these terms is blocked.
 
 ## `legacy_users/{uuid}`
-Contas do app antigo (login HF), importadas de `users.csv`.
+Accounts from the old app (HF sign-in), imported from `users.csv`.
 
-| Campo | Tipo |
+| Field | Type |
 |---|---|
 | `hf_username`, `handedness`, `trust_level` | string |
 | `first_seen` | timestamp |
 | `recording_count` | int |
+| `sign_recordings` | map |
 | `linked_uid` | string \| null |
 
-Vincular uma conta: o admin escolhe a conta antiga, `users/{uid}.uuid` recebe o uuid dela, `trust_level` é copiado e `linked_uid` é preenchido. As gravações continuam ligadas pelo `uuid`, sem mudar nada no bucket.
+To link an account: the admin selects the old account. `users/{uid}.uuid` gets the old uuid, the API copies `trust_level`, `sign_recordings` and `recording_count`, and sets `linked_uid`. The recordings stay linked by `uuid`. Nothing changes in the bucket. The new profile must have no recordings.
 
 ## `signs/{sign_id}`
-`sign_id` é o UUID do catálogo atual.
+`sign_id` is the UUID from the current catalog.
 
-| Campo | Tipo | Notas |
+| Field | Type | Notes |
 |---|---|---|
-| `slug` | string | Nome da pasta no bucket; imutável depois da primeira gravação |
-| `name` | string | Nome exibido |
-| `video_url` | string | Vídeo de referência (INES) |
-| `metadata` | map | Segue `config/sign_catalog.sign_metadata_schema` (hoje `is_dynamic`, `is_two_handed`) |
-| `active` | bool | Inativo some da coleta, mas mantém as gravações |
-| `order` | int | Ordem na coleta |
-| `recording_count`, `accepted_count`, `reference_count` | int | Contadores |
+| `slug` | string | Folder name in the bucket. It does not change |
+| `name` | string | Display name |
+| `video_url` | string | Reference video (INES) |
+| `metadata` | map | Follows `config/sign_catalog.sign_metadata_schema` (now `is_dynamic`, `is_two_handed`) |
+| `active` | bool | An inactive sign is not in the collection, but its recordings stay |
+| `order` | int | Order in the collection |
+| `recording_count`, `accepted_count`, `reference_count` | int | Counters |
 | `created_at`, `updated_at` | timestamp | |
 
 ## `recordings/{uuid}_{sign_id}_{NN}`
-ID fixo: reenviar a mesma gravação não cria outro documento.
+The id is fixed: a second upload of the same recording does not make a new document.
 
-| Campo | Tipo | Notas |
+| Field | Type | Notes |
 |---|---|---|
 | `uuid`, `sign_id`, `sign_slug` | string | |
 | `video_idx` | int | |
-| `path` | string | Caminho no bucket, ex.: `letra-a/<uuid>/01.npz` |
+| `path` | string | Path in the bucket, for example `letra-a/<uuid>/01.npz` |
 | `schema_version`, `capture_version` | string | |
-| `client_id` | string | UUID gerado no aparelho por gravação; reenvio com o mesmo valor devolve a gravação já salva |
-| `reserved_at` | timestamp | Momento da reserva do índice |
+| `client_id` | string | UUID that the device makes for each recording. A retry with the same value gives the saved recording |
+| `reserved_at` | timestamp | Time of the index reservation |
 | `pose_rate`, `left_hand_rate`, `right_hand_rate`, `any_hand_rate`, `both_hands_rate`, `motion_score` | number | |
-| `active_hand` | `left` \| `right` \| `unknown` | Auxiliar (ver npz.md) |
-| `legacy_handedness` | string, opcional | Mão dominante declarada no app antigo |
-| `validation_flags` | array de string | Códigos, nunca mensagens |
+| `active_hand` | `left` \| `right` \| `unknown` | Extra data (see npz.md) |
+| `legacy_handedness` | string, optional | Dominant hand from the old app |
+| `validation_flags` | array of string | Codes, never messages |
 | `reference_similarity_score` | number \| null | |
-| `status` | ver abaixo | |
-| `user_trust_level` | string | Cópia do nível de quem gravou |
-| `counts_as_reference` | bool | `status == accepted` e `user_trust_level == expert`, como no código atual |
-| `reviewed_by` | string \| null | uid de quem revisou |
+| `status` | see below | |
+| `user_trust_level` | string | Copy of the trust level of the author |
+| `counts_as_reference` | bool | `status == accepted` and `user_trust_level == expert`, as in the old code |
+| `reviewed_by` | string \| null | uid of the reviewer |
 | `reviewed_at`, `created_at`, `updated_at` | timestamp | |
-| `deleted_at` | timestamp, opcional | |
+| `deleted_at` | timestamp, optional | |
 
 Status:
-- `uploading`: interno, entre a reserva do índice e a confirmação do arquivo. Nunca aparece na análise nem para a pessoa.
-- `unreviewed`: padrão para `regular`.
-- `trusted_unreviewed`: padrão para `trusted` e `expert`.
-- `accepted` e `rejected`: depois da revisão.
-- `deleted`: a pessoa apagou. O `.npz` sai do bucket, mas o documento fica, para a exportação incremental saber que deve remover a linha do índice público.
+- `uploading`: internal, between the index reservation and the file confirmation. It never shows in review or to the person.
+- `unreviewed`: default for `regular`.
+- `trusted_unreviewed`: default for `trusted` and `expert`.
+- `accepted` and `rejected`: after review.
+- `deleted`: the person deleted it. The `.npz` file goes out of the bucket, but the document stays. Thus, the incremental export knows that it must remove the row from the public index.
 
-Revisão: `trusted`, `expert` e `admin` revisam, nunca as próprias gravações.
+Review: `trusted`, `expert` and `admin` can review, but never their own recordings.
 
 ## `config/*`
-- `config/sign_catalog`: `schema_version`, `sign_metadata_schema`. A API gera `signs.json` no bucket a partir dele e de `signs`.
-- `config/reference_profiles`: perfis por `sign_id` (UUID), `min_references`, `schema_version`, `build`.
+- `config/sign_catalog`: `schema_version`, `sign_metadata_schema`. The export script (stage 7) writes `signs.json` to the bucket from this document and from `signs`.
+- `config/reference_profiles`: profiles by `sign_id` (UUID), `min_references`, `schema_version`, `build`.
 - `config/username_blocklist`: `terms` (array).
-- `config/export`: `last_updated_at` da última exportação do índice público.
+- `config/export`: `last_updated_at` of the last public index export.
 
-## Fluxo do upload
-1. Transação de reserva: procura o `client_id`; se já existe e foi concluído, devolve a gravação (reenvio). Senão, escolhe o primeiro índice livre até o limite por sinal, conferindo também se o documento daquele índice não existe ou está `deleted`, e cria a gravação como `uploading`.
-2. Grava o `.npz` no bucket. Se falhar, a reserva é desfeita.
-3. Transação de confirmação: muda o status para o inicial do nível e soma os contadores.
+## Upload flow
+1. Reservation transaction: find the `client_id`. If it exists and is complete, return that recording (retry). If not, select the first free index up to the limit per sign. Make sure that the document of that index does not exist or is `deleted`. Then create the recording with status `uploading`.
+2. Write the `.npz` file to the bucket. If this fails, cancel the reservation.
+3. Confirmation transaction: set the initial status for the trust level and increase the counters.
 
-Se a função cair entre 1 e 3, a gravação fica `uploading`. Um reenvio com o mesmo `client_id` depois de 2 minutos retoma a reserva. Sem reenvio, o índice fica preso até um script de limpeza (ainda não escrito) liberar.
+If the function stops between steps 1 and 3, the recording stays `uploading`. A retry with the same `client_id` after 2 minutes continues the reservation. Without a retry, the index stays blocked until a cleanup script (not written yet) releases it.
 
-## Consultas e índices
-Declarados em `firestore.indexes.json`. Consultas fora desta lista precisam de índice novo.
+## Queries and indexes
+The indexes are in `firestore.indexes.json`. A query that is not in this list needs a new index.
 
-| Uso | Filtros | Ordem |
+| Use | Filters | Order |
 |---|---|---|
-| Análise | `status` | `created_at` desc |
-| Análise por sinal | `status`, `sign_id` | `created_at` desc |
-| Análise por nível | `status`, `user_trust_level` | `created_at` desc |
-| Análise por flag | `status`, `validation_flags` contém | `created_at` desc |
-| Análise por pessoa | `status`, `uuid` | `created_at` desc |
-| Minhas gravações | `uuid` | `created_at` desc |
-| Reenvio | `client_id ==` | — |
-| Exportação incremental | `updated_at >` último valor | `updated_at` |
-| Perfis de referência | `counts_as_reference == true` | — |
+| Review | `status` | `created_at` desc |
+| Review by sign | `status`, `sign_id` | `created_at` desc |
+| Review by trust level | `status`, `user_trust_level` | `created_at` desc |
+| Review by flag | `status`, `validation_flags` contains | `created_at` desc |
+| Review by person | `status`, `uuid` | `created_at` desc |
+| Own recordings | `uuid` | `created_at` desc |
+| Retry | `client_id ==` | — |
+| Incremental export | `updated_at >` last value | `updated_at` |
+| Reference profiles | `counts_as_reference == true` | — |
 | Ranking | `show_in_ranking == true` | `recording_count` desc |
 
-A análise sempre filtra por um status, para gravações apagadas nunca aparecerem. Busca por trecho de texto não existe; procurar uma pessoa é feito pelo username exato, convertido em `uuid` pela API. Paginação por cursor (`startAfter`), 50 por página.
+Review always filters by one status. Thus, deleted recordings never show. There is no text search. To find a person, use the exact username. The API changes it to a `uuid`. Pagination uses a cursor (`startAfter`), 50 items per page.
 
-## Custo estimado por operação
-Leituras e escritas de documento, para comparar com a cota gratuita de 50 mil leituras e 20 mil escritas por dia.
+## Estimated cost per operation
+Document reads and writes. Compare with the free quota: 50,000 reads and 20,000 writes per day.
 
-| Operação | Leituras | Escritas |
+| Operation | Reads | Writes |
 |---|---|---|
-| Cadastro | 2 | 2 |
-| Upload | cerca de 7 (perfil, sinal, reserva, confirmação, resposta) | 5 (reserva: gravação e usuário; confirmação: gravação, usuário e sinal) |
-| Página da análise | 50 | 0 |
-| Revisão em lote de 50 | 50 | 100 (gravações e contadores dos sinais) |
-| Exportação incremental | 1 por gravação alterada | 1 |
+| Registration | 2 | 2 |
+| Upload | approximately 7 (profile, sign, reservation, confirmation, response) | 5 (reservation: recording and user; confirmation: recording, user and sign) |
+| Review page | 50 | 0 |
+| Batch review of 50 | 50 | 100 (recordings and sign counters) |
+| Incremental export | 1 for each changed recording | 1 |
