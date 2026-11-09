@@ -71,6 +71,6 @@ The body is always `{"code": "...", ...}`. The interface changes the code into a
 
 ## Tests
 ```bash
-npx --prefix tests/firestore-rules firebase emulators:exec --only auth,firestore --project demo-libras ".venv\Scripts\python.exe -m pytest -q"
+npx firebase emulators:exec --only auth,firestore --project demo-libras ".venv\Scripts\python.exe -m pytest -q"
 ```
 Without the emulators, only the domain tests run (`.venv\Scripts\python.exe -m pytest -q`).
