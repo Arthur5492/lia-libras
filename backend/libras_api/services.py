@@ -18,14 +18,12 @@ from .recording import PayloadError, parse_upload, read_npz, replay_payload, to_
 from .settings import Settings
 from .storage import Storage
 
-USERS, USERNAMES, LEGACY, SIGNS, RECORDINGS, CONFIG = (
-    "users", "usernames", "legacy_users", "signs", "recordings", "config",
-)
+USERS, USERNAMES, SIGNS, RECORDINGS, CONFIG = "users", "usernames", "signs", "recordings", "config"
 TRUST_LEVELS = ("regular", "trusted", "expert")
 REVIEWER_LEVELS = {"trusted", "expert"}
 PENDING = {"unreviewed", "trusted_unreviewed"}
 LISTABLE_STATUSES = ("unreviewed", "trusted_unreviewed", "accepted", "rejected")
-HIDDEN_STATUSES = {"deleted", "uploading"}
+HIDDEN_STATUSES = {"uploading"}
 STALE_UPLOAD = timedelta(minutes=2)
 MAX_REVIEW_BATCH = 50
 PROFILES_CACHE_SECONDS = 60
@@ -320,7 +318,7 @@ def upload(db: firestore.Client, storage: Storage, settings: Settings, uid: str,
                 continue
             ref = db.collection(RECORDINGS).document(f"{person}_{sign_id}_{idx:02d}")
             snap = ref.get(transaction=t)
-            if not snap.exists or snap.get("status") == "deleted":
+            if not snap.exists:
                 chosen = (idx, ref)
                 break
         if chosen is None:
@@ -435,12 +433,7 @@ def delete_own(db: firestore.Client, storage: Storage, uid: str, user: dict, rec
         sign_recordings[current["sign_id"]] = [
             i for i in sign_recordings.get(current["sign_id"], []) if i != current["video_idx"]
         ]
-        t.update(rec_ref, {
-            "status": "deleted",
-            "counts_as_reference": False,
-            "deleted_at": firestore.SERVER_TIMESTAMP,
-            "updated_at": firestore.SERVER_TIMESTAMP,
-        })
+        t.delete(rec_ref)
         t.update(user_ref, {"sign_recordings": sign_recordings, "recording_count": firestore.Increment(-1)})
         t.update(sign_ref, {
             "recording_count": firestore.Increment(-1),
@@ -461,10 +454,8 @@ def _uuid_for_username(db: firestore.Client, username: str) -> str | None:
     snap = db.collection(USERNAMES).document(key).get()
     if not snap.exists:
         return None
-    if snap.get("uid"):
-        owner = db.collection(USERS).document(snap.get("uid")).get()
-        return owner.get("uuid") if owner.exists else None
-    return snap.to_dict().get("legacy_uuid")
+    owner = db.collection(USERS).document(snap.get("uid")).get()
+    return owner.get("uuid") if owner.exists else None
 
 
 def review_list(db: firestore.Client, settings: Settings, user: dict, params: dict) -> dict:
@@ -620,50 +611,6 @@ def _propagate_trust(db: firestore.Client, person: str, trust: str) -> None:
         if delta:
             batch.update(db.collection(SIGNS).document(sign_id), {"reference_count": firestore.Increment(delta)})
     batch.commit()
-
-
-def legacy_users(db: firestore.Client) -> list[dict]:
-    return [
-        {
-            "uuid": s.id,
-            "hf_username": s.get("hf_username"),
-            "trust_level": s.get("trust_level"),
-            "recording_count": int(s.get("recording_count") or 0),
-            "linked_uid": s.get("linked_uid"),
-        }
-        for s in db.collection(LEGACY).stream()
-    ]
-
-
-def link_legacy(db: firestore.Client, legacy_uuid: str, uid: str) -> dict:
-    legacy_ref = db.collection(LEGACY).document(legacy_uuid)
-    user_ref = db.collection(USERS).document(uid)
-
-    @firestore.transactional
-    def tx(t):
-        legacy = legacy_ref.get(transaction=t)
-        user = user_ref.get(transaction=t)
-        if not legacy.exists:
-            raise ApiError(404, "legacy_user_not_found")
-        if not user.exists:
-            raise ApiError(404, "user_not_found")
-        if legacy.get("linked_uid"):
-            raise ApiError(409, "legacy_already_linked")
-        if int(user.get("recording_count") or 0) > 0:
-            raise ApiError(409, "user_has_recordings")
-        old = legacy.to_dict()
-        t.update(user_ref, {
-            "uuid": legacy_uuid,
-            "trust_level": old.get("trust_level", "regular"),
-            "sign_recordings": old.get("sign_recordings") or {},
-            "recording_count": int(old.get("recording_count") or 0),
-            "legacy_hf_username": old.get("hf_username"),
-            "updated_at": firestore.SERVER_TIMESTAMP,
-        })
-        t.update(legacy_ref, {"linked_uid": uid})
-
-    run_transaction(db, tx)
-    return public_profile(uid, user_ref.get().to_dict())
 
 
 def create_sign(db: firestore.Client, body: dict) -> dict:

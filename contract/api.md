@@ -32,8 +32,6 @@ FastAPI in `backend/libras_api/`. When the API runs, the interactive documentati
 | `PATCH /api/review/recordings` | Review | `{"updates": [{"id", "status": "accepted" \| "rejected" \| "pending"}]}`, maximum 50 |
 | `GET /api/admin/users` | Admin | Paginated list, or `?username=` |
 | `PATCH /api/admin/users/{uid}` | Admin | `trust_level`, `role` |
-| `GET /api/admin/legacy-users` | Admin | Accounts from the old app |
-| `POST /api/admin/legacy-users/{uuid}/link` | Admin | `{"uid"}`: link the old account to a profile without recordings |
 | `GET /api/admin/signs` | Admin | Catalog with inactive signs |
 | `POST /api/admin/signs` | Admin | `name`, `video_url`, `sign_metadata`, `order` |
 | `PATCH /api/admin/signs/{id}` | Admin | Same fields and `active`. The slug does not change |
@@ -66,8 +64,8 @@ The body is always `{"code": "...", ...}`. The interface changes the code into a
 |---|---|
 | 401 | `missing_token`, `invalid_token` |
 | 403 | `not_registered`, `reviewer_only`, `admin_only`, `cannot_review_own` |
-| 404 | `recording_not_found`, `recording_file_missing`, `user_not_found`, `sign_not_found`, `legacy_user_not_found` |
-| 409 | `already_registered`, `username_taken`, `busy_retry` (try again), `sign_complete`, `upload_in_progress`, `client_id_conflict`, `slug_taken`, `legacy_already_linked`, `user_has_recordings`, `cannot_remove_own_admin` |
+| 404 | `recording_not_found`, `recording_file_missing`, `user_not_found`, `sign_not_found` |
+| 409 | `already_registered`, `username_taken`, `busy_retry` (try again), `sign_complete`, `upload_in_progress`, `client_id_conflict`, `slug_taken`, `cannot_remove_own_admin` |
 | 422 | `invalid_username`, `blocked_username`, `consent_required`, `unknown_sign`, `invalid_client_id`, `low_quality` (with `validation_flags` and `metrics`), `invalid_*_frames`, `invalid_*_shape`, `invalid_*_values`, `invalid_hand_labels`, `invalid_status`, `too_many_filters`, `invalid_cursor`, `invalid_batch_size`, `invalid_sign`, `invalid_role`, `invalid_trust_level`, `invalid_metadata_schema`, `invalid_sign_metadata` |
 | 502 | `storage_error` |
 

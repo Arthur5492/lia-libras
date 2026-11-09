@@ -181,16 +181,6 @@ def admin_update_user(uid: str, body: Payload, caller: Annotated[Caller, Depends
     return s.admin_update_user(get_db(), caller.uid, uid, body)
 
 
-@app.get("/api/admin/legacy-users")
-def admin_legacy_users(_: Annotated[Caller, Depends(admin)]) -> dict:
-    return {"items": s.legacy_users(get_db())}
-
-
-@app.post("/api/admin/legacy-users/{legacy_uuid}/link")
-def admin_link_legacy(legacy_uuid: str, body: Payload, _: Annotated[Caller, Depends(admin)]) -> dict:
-    return s.link_legacy(get_db(), legacy_uuid, str(body.get("uid") or ""))
-
-
 @app.get("/api/admin/signs")
 def admin_signs(_: Annotated[Caller, Depends(admin)]) -> dict:
     return s.catalog(get_db(), include_inactive=True)
