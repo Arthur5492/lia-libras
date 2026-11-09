@@ -1,0 +1,28 @@
+﻿# Projetos antigos: ficam intactos, com repositorios proprios
+adm_lia_libras_dataset/
+lia_libras_dataset/
+lstm_libras/
+
+# Segredos
+.env
+.env.*
+!.env.example
+*serviceAccount*.json
+
+# Dados e modelos gerados
+*.npz
+*.h5
+local_bucket/
+
+# Dependencias e builds
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.vercel/
+
+# Emuladores do Firebase
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
