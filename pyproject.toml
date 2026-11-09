@@ -1,7 +1,7 @@
 [project]
 name = "libras-pwa"
 version = "0.1.0"
-description = "API do PWA de coleta, análise e reconhecimento de sinais em Libras"
+description = "API for the PWA that collects, reviews and recognizes Libras signs"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

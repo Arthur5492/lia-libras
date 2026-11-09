@@ -1,7 +1,7 @@
-"""Compara os rotulos de mao do .npz com o pulso mais proximo da pose.
+"""Compare the hand labels in the .npz files with the nearest pose wrist.
 
-Uso: python -I analyze_hands.py <pasta_com_npz>
-Nao usa pickle e nao imprime nada que identifique pessoas.
+Usage: python -I analyze_hands.py <folder_with_npz>
+The script does not use pickle. The output does not identify persons.
 """
 import collections
 import sys
@@ -69,8 +69,8 @@ for path in files:
         if len(nearest) == 2 and nearest[0] == nearest[1]:
             t["both_hands_same_wrist"] += 1
 
-    # mesma mao fisica saltando de canal: so um canal em frames seguidos,
-    # o canal muda e a posicao quase nao muda
+    # The same physical hand jumps channel: only one channel in two
+    # consecutive frames, the channel changes, and the position stays almost the same.
     for i in range(1, n):
         for a, am, b, bm in ((lh, lm, rh, rm), (rh, rm, lh, lm)):
             if am[i - 1] and not bm[i - 1] and bm[i] and not am[i]:
@@ -80,7 +80,7 @@ for path in files:
     rec_with_flip += flipped
     rec_with_mismatch += mismatched
 
-    # mao ativa pelo pulso da pose: quem mais se move
+    # Active hand by pose wrist: the hand with the most movement.
     motion = {}
     for wrist, pts in assigned.items():
         if len(pts) >= 2:
@@ -95,20 +95,19 @@ for path in files:
         active[sign][name] += 1
         person_active[person][name] += 1
 
-print("arquivos:", len(files), "erros:", errors, "frames por gravacao:", dict(frames_shape))
+print("files:", len(files), "errors:", errors, "frames per recording:", dict(frames_shape))
 for k in sorted(t):
     print(f"  {k}: {t[k]}")
-print("gravacoes com rotulo diferente do pulso:", rec_with_mismatch)
-print("gravacoes com salto de canal:", rec_with_flip)
+print("recordings with a label different from the wrist:", rec_with_mismatch)
+print("recordings with a channel jump:", rec_with_flip)
 if dist_norm:
     d = np.array(dist_norm)
-    print("distancia pulso da mao -> pulso da pose (em larguras de ombro): "
-          f"mediana={np.median(d):.3f} p95={np.percentile(d, 95):.3f} max={d.max():.3f}")
-tot_people = collections.Counter()
-print("mao ativa por pessoa (anonimo):")
+    print("distance from hand wrist to pose wrist (in shoulder widths): "
+          f"median={np.median(d):.3f} p95={np.percentile(d, 95):.3f} max={d.max():.3f}")
+print("active hand per person (anonymous):")
 for i, (_, c) in enumerate(sorted(person_active.items(), key=lambda kv: -sum(kv[1].values()))):
-    print(f"  pessoa{i}: esq={c['pose_left']} dir={c['pose_right']}")
+    print(f"  person{i}: left={c['pose_left']} right={c['pose_right']}")
 mixed = sum(1 for c in active.values() if c["pose_left"] and c["pose_right"])
-print(f"sinais com as duas maos ativas em gravacoes diferentes: {mixed}/{len(active)}")
+print(f"signs with both hands active in different recordings: {mixed}/{len(active)}")
 top = sorted(((np.mean(v), s) for s, v in both_rate_by_sign.items()), reverse=True)[:6]
-print("sinais com mais frames de duas maos:", [(s, round(float(m), 2)) for m, s in top])
+print("signs with the most two-hand frames:", [(s, round(float(m), 2)) for m, s in top])

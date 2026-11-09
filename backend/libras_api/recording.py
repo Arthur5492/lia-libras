@@ -1,4 +1,4 @@
-"""Conversão do envio do navegador para o `.npz` e de volta para o replay."""
+"""Convert the browser upload to `.npz`, and `.npz` to replay data."""
 from __future__ import annotations
 
 import io
@@ -17,7 +17,7 @@ LABEL_CODES = {None: 0, "Left": 1, "Right": 2}
 
 
 class PayloadError(ValueError):
-    """Envio fora do formato. `code` vai para o cliente."""
+    """The upload has a bad format. The API sends `code` to the client."""
 
     def __init__(self, code: str):
         super().__init__(code)
@@ -67,7 +67,7 @@ def _int(meta: dict, key: str, default: int, low: int, high: int) -> int:
 
 
 def parse_upload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Valida o envio e devolve os arrays já com as mãos pelo pulso."""
+    """Validate the upload. Return the arrays with the hands assigned by wrist."""
     pose, pose_mask = _frames_to_array(payload.get("pose"), POSE_POINTS, POSE_DIMS, "pose")
     left, left_mask = _frames_to_array(payload.get("left_hand"), HAND_POINTS, HAND_DIMS, "left_hand")
     right, right_mask = _frames_to_array(payload.get("right_hand"), HAND_POINTS, HAND_DIMS, "right_hand")
@@ -121,7 +121,7 @@ def read_npz(payload: bytes) -> dict[str, np.ndarray]:
 
 
 def replay_payload(data: dict[str, Any]) -> dict[str, Any]:
-    """Landmarks no formato que o replay do navegador desenha (x, y[, visibility])."""
+    """Return landmarks in the format that the browser replay draws (x, y[, visibility])."""
 
     def points(key: str, cols: list[int]) -> list:
         arr = data.get(key)

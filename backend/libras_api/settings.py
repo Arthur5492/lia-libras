@@ -1,4 +1,4 @@
-"""Configuração lida do ambiente. Ver .env.example."""
+"""Settings from environment variables. See .env.example."""
 from __future__ import annotations
 
 import os

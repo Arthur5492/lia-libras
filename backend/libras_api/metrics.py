@@ -1,7 +1,7 @@
-"""Métricas de qualidade e validação por perfil de referência.
+"""Quality metrics and validation against reference profiles.
 
-Mesmo cálculo de lia_libras_dataset/src/storage.py e
-adm_lia_libras_dataset/src/reference_profiles.py, unificado aqui.
+The calculation is the same as in lia_libras_dataset/src/storage.py and
+adm_lia_libras_dataset/src/reference_profiles.py. This module joins the two.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def _mask_rate(mask: np.ndarray) -> float:
 
 
 def motion_score(left: np.ndarray, left_mask: np.ndarray, right: np.ndarray, right_mask: np.ndarray) -> float:
-    """Caminho percorrido pelo centro das mãos visíveis, em coordenadas da imagem."""
+    """Return the path length of the center of the visible hands, in image coordinates."""
     centers = []
     n_frames = max(len(left_mask), len(right_mask))
     for i in range(n_frames):
@@ -63,7 +63,7 @@ def recording_metrics(data: dict[str, Any]) -> dict[str, float]:
 
 
 def basic_flags(metrics: dict[str, float], pose_rate_min: float, any_hand_rate_min: float) -> list[str]:
-    """Falhas que impedem salvar a gravação."""
+    """Return the failures that stop the save of a recording."""
     flags = []
     if metrics["pose_rate"] < pose_rate_min:
         flags.append("low_pose_rate")
@@ -73,7 +73,7 @@ def basic_flags(metrics: dict[str, float], pose_rate_min: float, any_hand_rate_m
 
 
 def compare_with_profile(metrics: dict[str, float], profile: dict[str, Any]) -> tuple[float | None, list[str]]:
-    """Avisos (não bloqueiam) e a pontuação de semelhança com o perfil do sinal."""
+    """Return the similarity score and the warnings for the sign profile. Warnings do not stop the save."""
     ratios, flags = [], []
     for profile_key, (metric_key, flag) in REFERENCE_THRESHOLDS.items():
         threshold = float(profile.get(profile_key) or 0.0)

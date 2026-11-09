@@ -1,4 +1,4 @@
-"""Regra das mãos pelo pulso da pose e mão ativa (contract/npz.md)."""
+"""Hand assignment by pose wrist, and active hand. See contract/npz.md."""
 from __future__ import annotations
 
 import numpy as np
@@ -16,7 +16,7 @@ def _choose_channels(
     hands: list[tuple[np.ndarray, int]],
     anchors: list[np.ndarray | None],
 ) -> list[int]:
-    """Canal de cada mão. `hands` = [(xy do pulso, canal de origem)]."""
+    """Return the channel for each hand. `hands` = [(wrist xy, source channel)]."""
     if not hands:
         return []
     known = anchors[LEFT] is not None and anchors[RIGHT] is not None
@@ -44,10 +44,10 @@ def assign_hands(
     right_mask: np.ndarray,
     labels: np.ndarray | None = None,
 ) -> dict[str, np.ndarray]:
-    """Reatribui as mãos aos canais pelo pulso da pose.
+    """Put each hand in the channel of the nearest pose wrist.
 
-    Idempotente: aplicar de novo sobre o resultado não muda nada.
-    `labels` (n, 2) acompanha a mão quando ela troca de canal.
+    The function is idempotent: a second run gives the same result.
+    `labels` (n, 2) moves with the hand when the hand changes channel.
     """
     n = len(pose)
     src = (left, right)
@@ -89,7 +89,7 @@ def _wrist_motion(hand: np.ndarray, mask: np.ndarray) -> float:
 
 
 def active_hand(left: np.ndarray, left_mask: np.ndarray, right: np.ndarray, right_mask: np.ndarray) -> str:
-    """`left`, `right` ou `unknown`. Só informação auxiliar (pouco confiável em sinais parados)."""
+    """Return `left`, `right` or `unknown`. Use as extra data only: it is not reliable for static signs."""
     n = len(left_mask)
     left_count, right_count = int(left_mask.sum()), int(right_mask.sum())
     if left_count == 0 and right_count == 0:

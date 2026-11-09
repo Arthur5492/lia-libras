@@ -1,79 +1,79 @@
-# Contrato: gravações `.npz` e regra das mãos
+# Contract: `.npz` recordings and the hand rule
 
-Fonte da verdade técnica de cada gravação. O Firestore é só um índice. Conferido contra as 291 gravações do bucket em 2026-11-09.
+The `.npz` file is the technical source of truth for each recording. Firestore is only an index. Checked against the 291 recordings in the bucket on 2026-11-09.
 
-## Caminho no bucket
+## Path in the bucket
 `<sign_slug>/<uuid>/<NN>.npz`
 
-- `sign_slug`: slug do sinal no catálogo (ex.: `letra-a`). Todas as gravações atuais seguem isso.
-- `uuid`: identificador aleatório da pessoa (UUID v4). É o único dado de pessoa no bucket.
-- `NN`: índice da gravação com dois dígitos, a partir de `01`.
-- O slug de um sinal **não muda** depois que ele tem gravações, porque a pasta não é renomeada. Renomear o sinal altera só `name`.
-- Leitores devem aceitar formatos antigos que o código atual ainda trata: pasta com o id em vez do slug e nome sem zero à esquerda (`1.npz`). Nenhum existe hoje. Na migração, vale o `video_path` do manifest.
+- `sign_slug`: slug of the sign in the catalog (for example, `letra-a`). All current recordings use this.
+- `uuid`: random identifier of the person (UUID v4). This is the only personal data in the bucket.
+- `NN`: recording index with two digits. The first index is `01`.
+- Do **not** change the slug of a sign after it has recordings, because the folder does not change. To rename a sign, change only `name`.
+- Readers must accept the old formats that the old code also accepts: a folder with the id in place of the slug, and a name without the leading zero (`1.npz`). No file uses these formats now. For the migration, use the `video_path` from the manifest.
 
-## Versão 1.0 (todas as gravações atuais)
-Abrir sempre com `np.load(..., allow_pickle=False)`.
+## Version 1.0 (all current recordings)
+Always open with `np.load(..., allow_pickle=False)`.
 
-| Chave | Tipo | Forma | Conteúdo |
+| Key | Type | Shape | Content |
 |---|---|---|---|
 | `schema_version` | str | () | `"1.0"` |
-| `sinal_id` | str | () | UUID do sinal no catálogo |
-| `video_idx` | int16 | () | Igual ao `NN` do nome |
-| `frame_count` | int16 | () | Frames salvos (sempre 30) |
-| `raw_frame_count` | int16 | () | Frames capturados antes de reamostrar (varia, ex.: 15 a 35) |
-| `duration_ms` | int32 | () | Duração real capturada (2000 a 2151 hoje) |
+| `sinal_id` | str | () | UUID of the sign in the catalog |
+| `video_idx` | int16 | () | Same as `NN` in the file name |
+| `frame_count` | int16 | () | Saved frames (always 30) |
+| `raw_frame_count` | int16 | () | Captured frames before resampling (for example, 15 to 35) |
+| `duration_ms` | int32 | () | Real capture duration (2000 to 2151 now) |
 | `target_fps` | float32 | () | 15 |
 | `target_frame_count` | int16 | () | 30 |
 | `record_duration_ms` | int32 | () | 2000 |
-| `video_width`, `video_height` | int16 | () | Resolução da câmera (640 × 480 hoje) |
-| `pose` | float32 | (30, 33, 4) | x, y, z, visibility do BlazePose |
-| `pose_mask` | uint8 | (30,) | 1 se havia pose no frame |
-| `left_hand`, `right_hand` | float32 | (30, 21, 3) | x, y, z do Hand Landmarker |
-| `left_mask`, `right_mask` | uint8 | (30,) | 1 se havia mão naquele canal |
+| `video_width`, `video_height` | int16 | () | Camera resolution (640 × 480 now) |
+| `pose` | float32 | (30, 33, 4) | BlazePose x, y, z, visibility |
+| `pose_mask` | uint8 | (30,) | 1 if the frame has a pose |
+| `left_hand`, `right_hand` | float32 | (30, 21, 3) | Hand Landmarker x, y, z |
+| `left_mask`, `right_mask` | uint8 | (30,) | 1 if the channel has a hand |
 
-Convenções:
-- x e y são normalizados pela imagem **sem espelhar** (o espelho da tela é só visual). x cresce para a direita da imagem da câmera.
-- Coordenadas podem sair de [0, 1]: pontos fora do quadro, como as pernas, chegam a y = 2,4.
-- `z` é relativo e não deve ser usado como distância real.
-- Frame com máscara 0 tem coordenadas zeradas. Nenhum arquivo atual tem NaN.
-- Na 1.0, o canal da mão vem do rótulo do detector (`Left`/`Right`). Se as duas mãos recebem o mesmo rótulo, a segunda sobrescreve a primeira, e uma mão se perde.
+Conventions:
+- x and y are normalized to the image **without the mirror**. The screen mirror is only visual. x increases to the right of the camera image.
+- Coordinates can be outside [0, 1]. Points outside the image, such as the legs, go up to y = 2.4.
+- `z` is relative. Do not use it as a real distance.
+- A frame with mask 0 has coordinates of zero. No current file has NaN values.
+- In 1.0, the channel of a hand comes from the detector label (`Left`/`Right`). If two hands get the same label, the second hand replaces the first, and one hand is lost.
 
-## Versão 1.1 (gravações novas do PWA)
-Mesmas chaves e formas da 1.0, com estas mudanças:
+## Version 1.1 (new PWA recordings)
+Same keys and shapes as 1.0, with these changes:
 - `schema_version = "1.1"`.
-- Os canais já saem pela regra do pulso (abaixo), e nenhuma mão é descartada por rótulo repetido.
-- Nova chave `hand_labels`: uint8 (30, 2), com o rótulo original do detector em cada canal (0 = sem mão, 1 = `Left`, 2 = `Right`), só para auditoria.
-- Nova chave `capture_version`: str, versão do app que gravou.
+- The channels come from the wrist rule (below). The API does not discard a hand because of a repeated label.
+- New key `hand_labels`: uint8 (30, 2), with the original detector label in each channel (0 = no hand, 1 = `Left`, 2 = `Right`). Use it for audits only.
+- New key `capture_version`: str, version of the app that made the recording.
 
-Arquivos 1.0 **não são reescritos**, porque o bucket não tem versionamento. A regra do pulso é aplicada também na leitura; em arquivos 1.1 ela não muda nada.
+Do **not** write 1.0 files again, because the bucket has no versions. Apply the wrist rule also when you read a file. For 1.1 files, the rule changes nothing.
 
-## Regra das mãos (canal pelo pulso da pose)
-Usada na leitura de qualquer versão, no treino e na inferência. Python e TypeScript precisam produzir o mesmo resultado nos vetores de teste.
+## Hand rule (channel by pose wrist)
+Use this rule when you read any version, for training and for inference. Python and TypeScript must give the same result on the test vectors.
 
-Entradas por frame: pose (com máscara) e até duas mãos detectadas. Canal L = pulso esquerdo da pose (landmark 15); canal R = pulso direito (landmark 16). Distâncias em x e y, coordenadas da imagem, usando o pulso da mão (landmark 0).
+Input per frame: the pose (with its mask) and up to two detected hands. Channel L = left pose wrist (landmark 15). Channel R = right pose wrist (landmark 16). Measure distances in x and y, in image coordinates, from the hand wrist (landmark 0).
 
-Com pose no frame:
-1. Uma mão: vai para o canal do pulso mais próximo. Empate vai para L.
-2. Duas mãos `a` e `b`: se `d(a,L) + d(b,R) <= d(a,R) + d(b,L)`, então `a → L` e `b → R`; senão, o contrário. As duas nunca caem no mesmo canal.
+When the frame has a pose:
+1. One hand: put it in the channel of the nearest wrist. If the distances are equal, use L.
+2. Two hands `a` and `b`: if `d(a,L) + d(b,R) <= d(a,R) + d(b,L)`, then `a → L` and `b → R`. If not, use the opposite. The two hands never share a channel.
 
-Sem pose no frame, por continuidade:
-1. Para cada canal, guardar a última posição de pulso conhecida.
-2. Uma mão: vai para o canal cuja última posição está mais próxima. Sem histórico, mantém o canal que veio no arquivo.
-3. Duas mãos: mesma soma mínima do caso com pose, usando as últimas posições. Sem histórico de um dos canais, mantém os canais do arquivo.
+When the frame has no pose, keep the continuity:
+1. For each channel, keep the last known wrist position.
+2. One hand: put it in the channel with the nearest last position. If there is no history, keep the channel from the file.
+3. Two hands: use the same lowest sum as above, with the last positions. If one channel has no history, keep the channels from the file.
 
-"L" e "R" seguem o BlazePose, que nomeia os lados da pessoa. A regra não depende disso estar correto: ela só precisa ser estável.
+"L" and "R" follow BlazePose, which names the sides of the person. The rule does not need these names to be correct. It only needs to be stable.
 
-## Espelhamento (só no treino)
-Para ensinar o modelo a aceitar as duas mãos:
-- `x' = 1 - x` em pose e mãos.
-- Trocar os canais de mão (L ↔ R) e suas máscaras.
-- Trocar os pares esquerda/direita da pose: 1↔4, 2↔5, 3↔6, 7↔8, 9↔10, 11↔12, 13↔14, 15↔16, 17↔18, 19↔20, 21↔22, 23↔24, 25↔26, 27↔28, 29↔30, 31↔32.
+## Mirror (training only)
+Use this to teach the model to accept each hand:
+- `x' = 1 - x` for the pose and the hands.
+- Swap the hand channels (L ↔ R) and their masks.
+- Swap the left/right pose pairs: 1↔4, 2↔5, 3↔6, 7↔8, 9↔10, 11↔12, 13↔14, 15↔16, 17↔18, 19↔20, 21↔22, 23↔24, 25↔26, 27↔28, 29↔30, 31↔32.
 
-## Mão ativa
-Calculada por gravação, depois da regra do pulso: o canal com mais movimento do pulso, se os dois aparecem em pelo menos metade dos frames; senão, o canal mais presente. Valores: `left`, `right` ou `unknown` (nenhuma mão). É só informação auxiliar: em sinais parados, como as letras U e V, a mão passiva aparece em cerca de 90% dos frames e o resultado é pouco confiável.
+## Active hand
+Calculate it for each recording, after the wrist rule. If each channel has a hand in at least half of the frames, use the channel with more wrist movement. If not, use the channel with more frames. Values: `left`, `right` or `unknown` (no hand). Use it as extra data only. For static signs, such as the letters U and V, the passive hand is visible in approximately 90% of the frames, and the result is not reliable.
 
-## Validação no upload
-- Rejeita (não salva): `frame_count != 30`, formas diferentes da tabela, valores não finitos, `sinal_id` fora do catálogo ou inativo, pose em menos de 80% dos frames (`low_pose_rate`) ou alguma mão em menos de 30% (`low_any_hand_rate`).
-- Avisa (salva com flag): comparação com o perfil de referência do sinal, como no código atual.
+## Validation on upload
+- Reject (do not save): `frame_count != 30`, shapes different from the table, values that are not finite, a `sinal_id` that is not in the catalog or is not active, a pose in less than 80% of the frames (`low_pose_rate`), or a hand in less than 30% of the frames (`low_any_hand_rate`).
+- Warn (save with a flag): comparison with the reference profile of the sign, as in the old code.
 
-Os perfis de referência atuais usam a chave `amor` (slug), mas as gravações usam o UUID do sinal. Por isso a comparação nunca foi aplicada: nenhuma das 300 linhas de manifest tem flag. Na migração, as chaves dos perfis passam a ser o UUID.
+The current reference profiles use the key `amor` (slug), but the recordings use the sign UUID. Thus, the comparison never occurred: no manifest row of the 300 has a flag. The migration changes the profile keys to the UUID.

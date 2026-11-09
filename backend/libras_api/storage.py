@@ -1,4 +1,4 @@
-"""Armazenamento dos `.npz`: pasta local (testes) ou bucket do HF."""
+"""Storage for `.npz` files: a local folder (for tests) or the HF bucket."""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -17,7 +17,7 @@ class Storage(Protocol):
 def _check_path(path: str) -> str:
     parts = path.split("/")
     if not path or path.startswith("/") or any(p in ("", ".", "..") or "\\" in p for p in parts):
-        raise ValueError(f"caminho inválido: {path!r}")
+        raise ValueError(f"Path is not valid: {path!r}")
     return path
 
 
@@ -45,7 +45,7 @@ class HfBucketStorage:
         from huggingface_hub import HfFileSystem
 
         if not bucket:
-            raise RuntimeError("LIA_HF_BUCKET não configurado")
+            raise RuntimeError("LIA_HF_BUCKET is not set")
         self.base = f"buckets/{bucket}"
         self.fs = HfFileSystem(token=token)
 
@@ -74,4 +74,4 @@ def get_storage() -> Storage:
         return HfBucketStorage(settings.hf_bucket, settings.hf_token)
     if settings.storage_mode == "local":
         return LocalStorage(settings.local_bucket)
-    raise RuntimeError(f"LIA_STORAGE inválido: {settings.storage_mode}")
+    raise RuntimeError(f"LIA_STORAGE is not valid: {settings.storage_mode}")

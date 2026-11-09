@@ -1,8 +1,9 @@
-"""Compara a estabilidade dos canais: rotulo do detector x pulso da pose.
+"""Compare channel stability: detector label against pose wrist.
 
-Sem gabarito, o criterio e fisico: uma mao nao salta longe entre dois frames
-seguidos a 15 fps. Mede saltos por canal em cada metodo.
-Uso: python -I compare_assignment.py <pasta_com_npz>
+There is no ground truth. The test uses a physical rule: a hand does not
+jump far between two consecutive frames at 15 fps. The script counts the
+jumps per channel for each method.
+Usage: python -I compare_assignment.py <folder_with_npz>
 """
 import collections
 import sys
@@ -11,11 +12,11 @@ from pathlib import Path
 import numpy as np
 
 LW, RW, LS, RS = 15, 16, 11, 12
-THRESHOLDS = (0.5, 1.0)  # em larguras de ombro por frame
+THRESHOLDS = (0.5, 1.0)  # In shoulder widths per frame.
 
 
 def by_pose(i, pose, hands):
-    """Devolve {canal: wrist_xy}; duas maos usam a permutacao de menor custo."""
+    """Return {channel: wrist_xy}. For two hands, use the permutation with the lowest cost."""
     lw, rw = pose[i, LW, :2], pose[i, RW, :2]
     if len(hands) == 2:
         a, b = hands
@@ -28,14 +29,14 @@ def by_pose(i, pose, hands):
     return {}
 
 
-jumps = {m: collections.Counter() for m in ("rotulo", "pulso")}
-recs = {m: collections.Counter() for m in ("rotulo", "pulso")}
+jumps = {m: collections.Counter() for m in ("label", "wrist")}
+recs = {m: collections.Counter() for m in ("label", "wrist")}
 changed = total = far = n_recs = 0
 for path in sorted(Path(sys.argv[1]).rglob("*.npz")):
     with np.load(path, allow_pickle=False) as z:
         pose, lh, lm, rh, rm = z["pose"], z["left_hand"], z["left_mask"].astype(bool), z["right_hand"], z["right_mask"].astype(bool)
     n_recs += 1
-    prev = {"rotulo": {}, "pulso": {}}
+    prev = {"label": {}, "wrist": {}}
     hit = {m: set() for m in prev}
     for i in range(len(pose)):
         scale = np.linalg.norm(pose[i, LS, :2] - pose[i, RS, :2]) or 1.0
@@ -51,7 +52,7 @@ for path in sorted(Path(sys.argv[1]).rglob("*.npz")):
                 changed += 1
             d = min(np.linalg.norm(w - pose[i, LW, :2]), np.linalg.norm(w - pose[i, RW, :2])) / scale
             far += d > 1.0
-        for method, cur in (("rotulo", labeled), ("pulso", assigned)):
+        for method, cur in (("label", labeled), ("wrist", assigned)):
             for ch, w in cur.items():
                 if ch in prev[method]:
                     step = np.linalg.norm(w - prev[method][ch]) / scale
@@ -64,9 +65,9 @@ for path in sorted(Path(sys.argv[1]).rglob("*.npz")):
         for th in hit[m]:
             recs[m][th] += 1
 
-print(f"gravacoes={n_recs} maos_em_frames={total}")
-print(f"canais alterados pelo metodo do pulso: {changed} ({changed/total:.1%})")
-print(f"mao a mais de 1 largura de ombro de qualquer pulso: {far} ({far/total:.2%})")
+print(f"recordings={n_recs} hands_in_frames={total}")
+print(f"channels changed by the wrist method: {changed} ({changed/total:.1%})")
+print(f"hand more than 1 shoulder width from both wrists: {far} ({far/total:.2%})")
 for th in THRESHOLDS:
-    for m in ("rotulo", "pulso"):
-        print(f"salto > {th} ombro/frame | {m}: {jumps[m][th]} saltos em {recs[m][th]} gravacoes")
+    for m in ("label", "wrist"):
+        print(f"jump > {th} shoulder/frame | {m}: {jumps[m][th]} jumps in {recs[m][th]} recordings")

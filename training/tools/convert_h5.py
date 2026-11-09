@@ -1,4 +1,8 @@
-"""Converte um .h5 para TF.js sem carregar Decision Forests (que falha no Windows)."""
+"""Convert a Keras .h5 model to TensorFlow.js.
+
+The script does not load TensorFlow Decision Forests, because that import fails on Windows.
+Usage: python -I convert_h5.py <model.h5> <output_folder>
+"""
 import os
 import sys
 import types
