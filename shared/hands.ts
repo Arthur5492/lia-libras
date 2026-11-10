@@ -1,5 +1,5 @@
 // Hand assignment by pose wrist, and active hand. See contract/npz.md.
-import { emptyHand, HAND_DIMS, HAND_POINTS, LEFT, POSE_DIMS, RIGHT, type Capture, type HandChannel } from "./capture";
+import { emptyHand, HAND_DIMS, HAND_POINTS, LEFT, POSE_DIMS, RIGHT, type Capture, type HandChannel } from "./capture.js";
 
 const LEFT_WRIST = 15;
 const RIGHT_WRIST = 16;

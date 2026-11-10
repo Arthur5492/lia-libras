@@ -1,18 +1,18 @@
 // Operations on Firestore and on the bucket. See the schema in contract/firestore.md.
 import { randomUUID } from "node:crypto";
 import { FieldValue, Timestamp, type DocumentData, type Firestore, type Transaction } from "firebase-admin/firestore";
-import { CaptureError, decodeCapture, SCHEMA_VERSION, type UploadBody } from "../shared/capture";
-import { activeHand, assignHands } from "../shared/hands";
+import { CaptureError, decodeCapture, SCHEMA_VERSION, type UploadBody } from "../shared/capture.js";
+import { activeHand, assignHands } from "../shared/hands.js";
 import {
   assessReference, basicFlags, buildProfile, recordingMetrics, type Metrics, type ReferenceProfiles,
-} from "../shared/metrics";
+} from "../shared/metrics.js";
 import {
   NamingError, normalizeMetadata, slugify, usernameKey, validateMetadataSchema, type MetadataSchema,
-} from "../shared/naming";
-import { ApiError } from "./errors";
-import { readNpz, replayPayload, writeNpz } from "./npz";
-import type { Settings } from "./settings";
-import type { Storage } from "./storage";
+} from "../shared/naming.js";
+import { ApiError } from "./errors.js";
+import { readNpz, replayPayload, writeNpz } from "./npz.js";
+import type { Settings } from "./settings.js";
+import type { Storage } from "./storage.js";
 
 const USERS = "users";
 const USERNAMES = "usernames";

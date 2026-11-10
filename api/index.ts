@@ -1,5 +1,5 @@
 // Entry point for Vercel Functions. All /api/* requests come here (see vercel.json).
-import { app } from "../server/app";
+import { app } from "../server/app.js";
 
 const handler = (request: Request) => app.fetch(request);
 

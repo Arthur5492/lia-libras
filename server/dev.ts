@@ -1,6 +1,6 @@
 // Local API server for development. Run with the Firebase emulators (see README.md).
 import { createServer } from "node:http";
-import { app } from "./app";
+import { app } from "./app.js";
 
 const port = Number(process.env.PORT || 8000);
 

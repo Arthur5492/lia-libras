@@ -1,5 +1,5 @@
 // Quality metrics and validation against reference profiles.
-import { HAND_DIMS, HAND_POINTS, LEFT, RIGHT, type Capture, type HandChannel } from "./capture";
+import { HAND_DIMS, HAND_POINTS, LEFT, RIGHT, type Capture, type HandChannel } from "./capture.js";
 
 export const POSE_RATE_MIN = 0.8;
 export const ANY_HAND_RATE_MIN = 0.3;
