@@ -3,7 +3,7 @@ import { unzipSync, zipSync } from "fflate";
 import {
   emptyHand, HAND_DIMS, HAND_POINTS, LEFT, POSE_DIMS, POSE_POINTS, RIGHT, SCHEMA_VERSION, WORLD_DIMS,
   type Capture,
-} from "../shared/capture";
+} from "../shared/capture.js";
 
 type Typed = Float32Array | Uint8Array;
 

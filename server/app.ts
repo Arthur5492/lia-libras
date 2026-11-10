@@ -1,10 +1,10 @@
 // API routes. All writes to Firestore and to the bucket go through this module. See contract/api.md.
 import { Hono, type Context } from "hono";
-import { ApiError } from "./errors";
-import { getDb, verifyToken } from "./firebase";
-import * as s from "./services";
-import { getSettings } from "./settings";
-import { getStorage } from "./storage";
+import { ApiError } from "./errors.js";
+import { getDb, verifyToken } from "./firebase.js";
+import * as s from "./services.js";
+import { getSettings } from "./settings.js";
+import { getStorage } from "./storage.js";
 
 interface Caller {
   uid: string;

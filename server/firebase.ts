@@ -2,7 +2,7 @@
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { getSettings } from "./settings";
+import { getSettings } from "./settings.js";
 
 function getApp(): App {
   const existing = getApps()[0];

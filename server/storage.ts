@@ -2,7 +2,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { deleteFile, downloadFile, uploadFile } from "@huggingface/hub";
-import { getSettings } from "./settings";
+import { getSettings } from "./settings.js";
 
 export interface Storage {
   put(filePath: string, data: Uint8Array): Promise<void>;
