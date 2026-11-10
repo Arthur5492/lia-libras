@@ -1,7 +1,6 @@
 // Storage for `.npz` files: a local folder (for tests) or the HF bucket.
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { deleteFile, downloadFile, uploadFile } from "@huggingface/hub";
 import { getSettings } from "./settings.js";
 
 export interface Storage {
@@ -46,6 +45,9 @@ export class LocalStorage implements Storage {
   }
 }
 
+// The library loads only when the bucket is used, so the other routes do not depend on it.
+const hub = () => import("@huggingface/hub");
+
 export class HfBucketStorage implements Storage {
   private repo: `buckets/${string}`;
 
@@ -56,6 +58,7 @@ export class HfBucketStorage implements Storage {
   }
 
   async put(filePath: string, data: Uint8Array): Promise<void> {
+    const { uploadFile } = await hub();
     await uploadFile({
       repo: this.repo,
       accessToken: this.token,
@@ -64,11 +67,13 @@ export class HfBucketStorage implements Storage {
   }
 
   async get(filePath: string): Promise<Uint8Array | null> {
+    const { downloadFile } = await hub();
     const blob = await downloadFile({ repo: this.repo, accessToken: this.token, path: checkPath(filePath) });
     return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
   }
 
   async delete(filePath: string): Promise<void> {
+    const { deleteFile } = await hub();
     try {
       await deleteFile({ repo: this.repo, accessToken: this.token!, path: checkPath(filePath) });
     } catch (error) {
