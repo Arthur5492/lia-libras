@@ -59,6 +59,7 @@ The id is fixed: a second upload of the same recording does not make a new docum
 | `video_idx` | int | |
 | `path` | string | Path in the bucket, for example `letra-a/<uuid>/01.npz` |
 | `schema_version`, `capture_version` | string | |
+| `frame_count`, `duration_ms` | int | |
 | `client_id` | string | UUID that the device makes for each recording. A retry with the same value gives the saved recording |
 | `reserved_at` | timestamp | Time of the index reservation |
 | `pose_rate`, `left_hand_rate`, `right_hand_rate`, `any_hand_rate`, `both_hands_rate`, `motion_score` | number | |
