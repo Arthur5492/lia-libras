@@ -1,10 +1,7 @@
 // Entry point for Vercel Functions. All /api/* requests come here (see vercel.json).
-import { app } from "../server/app.js";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { handleNode } from "../server/node.js";
 
-const handler = (request: Request) => app.fetch(request);
-
-export const GET = handler;
-export const POST = handler;
-export const PATCH = handler;
-export const PUT = handler;
-export const DELETE = handler;
+export default function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  return handleNode(req, res);
+}
