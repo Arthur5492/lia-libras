@@ -1,6 +1,6 @@
 # Contract: API
 
-FastAPI in `backend/libras_api/`. When the API runs, the interactive documentation is at `/api/docs`.
+Hono app in `server/app.ts`. `api/index.ts` is the Vercel entry point.
 
 ## Authentication
 `Authorization: Bearer <Firebase ID token>`. Routes that need a profile need a registration first (`POST /api/me`).
@@ -24,6 +24,7 @@ FastAPI in `backend/libras_api/`. When the API runs, the interactive documentati
 | `POST /api/me` | Sign-in | Registration: `username`, `consent_version`, `show_in_ranking` |
 | `GET /api/me` | Profile | Profile, with `sign_recordings` |
 | `PATCH /api/me` | Profile | Only `show_in_ranking` |
+| `GET /api/collect/next?count=5` | Profile | Signs for the next collection session: not complete for the person, fewest recordings first |
 | `POST /api/recordings` | Profile | Upload (format below). 201 for a new recording, 200 for a retry |
 | `GET /api/me/recordings` | Profile | Own recordings |
 | `DELETE /api/me/recordings/{id}` | Profile | Delete an own recording |
@@ -40,22 +41,29 @@ FastAPI in `backend/libras_api/`. When the API runs, the interactive documentati
 | `POST /api/admin/reference-profiles/rebuild` | Admin | Build the profiles again from the reference recordings |
 
 ## Upload
-Coordinates are lists, not `{x, y, z}` objects. This makes the body smaller. A frame without a detection is `null`.
+The arrays are base64 text of little-endian bytes: float32 for coordinates, timestamps and scores, uint8 for masks and labels. `shared/capture.ts` has `encodeCapture` and `decodeCapture`. See contract/npz.md for the shapes.
 
 ```json
 {
   "client_id": "uuid made on the device, the same for each retry",
   "sign_id": "uuid of the sign",
   "capture_version": "pwa-0.1.0",
-  "meta": {"raw_frame_count": 33, "duration_ms": 2010, "record_duration_ms": 2000, "video_width": 640, "video_height": 480},
-  "pose": [[[x, y, z, visibility] × 33] | null] × 30,
-  "left_hand": [[[x, y, z] × 21] | null] × 30,
-  "right_hand": [[[x, y, z] × 21] | null] × 30,
-  "hand_labels": [["Left" | "Right" | null, "Left" | "Right" | null] × 30]
+  "meta": {"duration_ms": 2000, "video_width": 640, "video_height": 480},
+  "frame_count": 47,
+  "timestamps_ms": "base64 float32 (n)",
+  "pose": "base64 float32 (n*33*4)",
+  "pose_world": "base64 float32 (n*33*3)",
+  "pose_mask": "base64 uint8 (n)",
+  "left_hand": "base64 float32 (n*21*3)",
+  "left_hand_world": "base64 float32 (n*21*3)",
+  "left_mask": "base64 uint8 (n)",
+  "right_hand": "...", "right_hand_world": "...", "right_mask": "...",
+  "hand_labels": "base64 uint8 (n*2)",
+  "hand_scores": "base64 float32 (n*2)"
 }
 ```
 
-The server applies the hand rule again (contract/npz.md), validates the data and writes a 1.1 `.npz` file. The response contains the recording and the replay data.
+The server applies the hand rule again, validates the data and writes the `.npz` file. The response contains the recording and the replay data.
 
 ## Errors
 The body is always `{"code": "...", ...}`. The interface changes the code into a message.
@@ -66,11 +74,12 @@ The body is always `{"code": "...", ...}`. The interface changes the code into a
 | 403 | `not_registered`, `reviewer_only`, `admin_only`, `cannot_review_own` |
 | 404 | `recording_not_found`, `recording_file_missing`, `user_not_found`, `sign_not_found` |
 | 409 | `already_registered`, `username_taken`, `busy_retry` (try again), `sign_complete`, `upload_in_progress`, `client_id_conflict`, `slug_taken`, `cannot_remove_own_admin` |
-| 422 | `invalid_username`, `blocked_username`, `consent_required`, `unknown_sign`, `invalid_client_id`, `low_quality` (with `validation_flags` and `metrics`), `invalid_*_frames`, `invalid_*_shape`, `invalid_*_values`, `invalid_hand_labels`, `invalid_status`, `too_many_filters`, `invalid_cursor`, `invalid_batch_size`, `invalid_sign`, `invalid_role`, `invalid_trust_level`, `invalid_metadata_schema`, `invalid_sign_metadata` |
+| 422 | `invalid_username`, `blocked_username`, `consent_required`, `unknown_sign`, `invalid_client_id`, `low_quality` (with `validation_flags` and `metrics`), `invalid_json`, `invalid_frame_count`, `invalid_<array>`, `invalid_<array>_shape`, `invalid_<array>_values`, `invalid_status`, `too_many_filters`, `invalid_cursor`, `invalid_batch_size`, `invalid_sign`, `invalid_role`, `invalid_trust_level`, `invalid_metadata_schema`, `invalid_sign_metadata` |
+| 500 | `internal_error` |
 | 502 | `storage_error` |
 
 ## Tests
 ```bash
-npx firebase emulators:exec --only auth,firestore --project demo-libras ".venv\Scripts\python.exe -m pytest -q"
+npx firebase emulators:exec --only auth,firestore --project demo-libras "npm test"
 ```
-Without the emulators, only the domain tests run (`.venv\Scripts\python.exe -m pytest -q`).
+Without the emulators, only the domain tests run (`npm test`).

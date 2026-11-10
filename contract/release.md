@@ -44,7 +44,7 @@ The file has no username, email, Firebase uid or trust level.
 ```
 
 ## Script
-`scripts/publish_release.py` (stage 7):
+`scripts/publish_release.ts` (not written yet):
 1. Read the catalog and the `accepted` recordings from Firestore.
 2. Make sure that each `.npz` file exists in the bucket. Stop if a file is missing.
 3. Write `index.csv`, `signs.json` and `README.md` to a new `releases/v<N>/` folder.
