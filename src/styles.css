@@ -101,6 +101,16 @@ a { color: var(--teal); text-underline-offset: 0.15em; }
 .dot { width: 0.75rem; height: 0.75rem; border-radius: 50%; border: 2px solid var(--line); }
 .dot--on { background: var(--yellow); border-color: var(--yellow); }
 
+/* Admin: sign catalog */
+.sign-admin + .sign-admin { border-top: 1.5px solid var(--line); }
+.sign-admin .sign-row + .sign-row { border-top: 0; }
+.sign-row__meta { display: block; font-size: var(--step--1); }
+.sign-row__actions { display: flex; gap: 1rem; flex-shrink: 0; }
+.link-button { font: inherit; font-weight: 600; color: var(--teal); background: none; border: 0; padding: 0.5rem 0; cursor: pointer; text-decoration: underline; text-underline-offset: 0.15em; }
+.link-button:disabled { color: var(--ink-soft); cursor: wait; }
+.editor { padding: 1rem; }
+h2 { margin-top: 2rem; }
+
 /* Sign-in: the hand is the one bold element. */
 .signin {
   flex: 1; display: grid; align-content: center; gap: 1.5rem;

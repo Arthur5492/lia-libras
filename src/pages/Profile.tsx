@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api, errorMessage } from "../api";
 import { useAuth, useProfile } from "../auth";
 
@@ -39,6 +40,9 @@ export function Profile() {
         <span>Mostrar meu nome de usuário no ranking público.</span>
       </label>
       {error && <p className="form-error" role="alert">{error}</p>}
+      {profile.role === "admin" && (
+        <p><Link to="/admin/sinais">Gerenciar sinais</Link></p>
+      )}
       <button className="button button--quiet" onClick={signOut}>Sair</button>
     </main>
   );

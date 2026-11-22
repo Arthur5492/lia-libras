@@ -21,6 +21,24 @@ export interface Sign {
   video_url: string;
   sign_metadata: Record<string, boolean>;
   order: number;
+  active: boolean;
+  recording_count: number;
+}
+
+export type MetadataSchema = Record<string, { type: "boolean"; label: string }>;
+
+export interface Catalog {
+  schema_version: string;
+  sign_metadata_schema: MetadataSchema;
+  signs: Sign[];
+}
+
+export interface SignInput {
+  name: string;
+  video_url: string;
+  sign_metadata: Record<string, boolean>;
+  order: number;
+  active?: boolean;
 }
 
 export interface Stats {
@@ -74,6 +92,9 @@ export const api = {
     ),
   signs: () => request<{ signs: Sign[] }>("GET", "/api/signs"),
   stats: () => request<Stats>("GET", "/api/stats"),
+  adminSigns: () => request<Catalog>("GET", "/api/admin/signs"),
+  createSign: (input: SignInput) => request<Sign>("POST", "/api/admin/signs", input),
+  updateSign: (id: string, input: Partial<SignInput>) => request<Sign>("PATCH", `/api/admin/signs/${id}`, input),
 };
 
 const MESSAGES: Record<string, string> = {
@@ -85,6 +106,10 @@ const MESSAGES: Record<string, string> = {
   consent_required: "Aceite o termo para continuar.",
   busy_retry: "O servidor está ocupado. Tente de novo.",
   invalid_token: "Sua sessão expirou. Entre de novo.",
+  admin_only: "Só administradores podem fazer isso.",
+  slug_taken: "Já existe um sinal com esse nome.",
+  invalid_sign: "Informe o nome e um link de vídeo que comece com https://.",
+  sign_not_found: "Esse sinal não existe mais. Recarregue a página.",
 };
 
 /** Message in Portuguese for the person, from an error code. */

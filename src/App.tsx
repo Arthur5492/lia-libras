@@ -1,6 +1,7 @@
 import { Link, Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { errorMessage } from "./api";
 import { useAuth } from "./auth";
+import { AdminSigns } from "./pages/AdminSigns";
 import { Collect } from "./pages/Collect";
 import { Profile } from "./pages/Profile";
 import { Recognize } from "./pages/Recognize";
@@ -41,6 +42,13 @@ function NeedsProfile() {
   return session.state === "ready" ? <Outlet /> : <Navigate to="/" replace />;
 }
 
+/** Routes for administrators. Other people go to the profile. */
+function NeedsAdmin() {
+  const { session } = useAuth();
+  if (session.state !== "ready") return <Outlet />;
+  return session.profile.role === "admin" ? <Outlet /> : <Navigate to="/perfil" replace />;
+}
+
 function Start() {
   const { session, reload, signOut } = useAuth();
   switch (session.state) {
@@ -74,6 +82,9 @@ export function App() {
           <Route path="coletar" element={<Collect />} />
           <Route path="analisar" element={<Review />} />
           <Route path="perfil" element={<Profile />} />
+          <Route element={<NeedsAdmin />}>
+            <Route path="admin/sinais" element={<AdminSigns />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
