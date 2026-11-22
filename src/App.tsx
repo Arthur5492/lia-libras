@@ -1,5 +1,6 @@
 import { Link, Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { errorMessage } from "./api";
+import { messageFor } from "./messages";
 import { useAuth } from "./auth";
 import { AdminSigns } from "./pages/AdminSigns";
 import { Collect } from "./pages/Collect";
@@ -63,7 +64,7 @@ function Start() {
     case "error":
       return (
         <main className="page page--narrow">
-          <h1>Não foi possível carregar seu perfil</h1>
+          <h1>{messageFor("profile_load_failed")}</h1>
           <p className="form-error" role="alert">{errorMessage(session.error)}</p>
           <button className="button button--primary" onClick={reload}>Tentar de novo</button>
           <button className="button button--quiet" onClick={signOut}>Sair</button>

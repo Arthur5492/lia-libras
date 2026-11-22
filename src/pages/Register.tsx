@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, errorMessage } from "../api";
 import { useAuth } from "../auth";
 import { CONSENT_PARAGRAPHS, CONSENT_VERSION } from "../consent";
+import { messageFor } from "../messages";
 
 type NameState = { kind: "idle" } | { kind: "checking" } | { kind: "free" } | { kind: "problem"; message: string };
 
@@ -27,7 +28,7 @@ export function Register() {
       try {
         const result = await api.usernameAvailable(name);
         if (active) {
-          setNameState(result.available ? { kind: "free" } : { kind: "problem", message: "Esse nome já está em uso." });
+          setNameState(result.available ? { kind: "free" } : { kind: "problem", message: messageFor("username_taken") });
         }
       } catch (e) {
         if (active) setNameState({ kind: "problem", message: errorMessage(e) });

@@ -37,6 +37,15 @@ npx firebase emulators:exec --only auth,firestore --project demo-libras "npm tes
 
 GitHub Actions runs the type check, the tests and the build on each push (`.github/workflows/ci.yml`).
 
+## Error and alert messages
+The texts for errors and alerts are placeholders. All of them are in `src/messages.ts`, and each one has a stable code (see `contract/api.md`). To change a text, change that file only.
+
+In a later stage, the messages and the alert design will follow the guides of large companies:
+- Apple, Human Interface Guidelines, Alerts: https://developer.apple.com/design/human-interface-guidelines/alerts
+- Google, Technical Writing, Error messages: https://developers.google.com/tech-writing/error-messages
+
+Until then, do not spend time on the wording or on the look of the messages.
+
 ## Deploy
 Vercel builds each push to `main`. Set these environment variables in Vercel: `FIREBASE_SERVICE_ACCOUNT_JSON`, `LIA_FIREBASE_PROJECT_ID`, `LIA_STORAGE=hf`, `LIA_HF_BUCKET`, `HF_TOKEN`.
 

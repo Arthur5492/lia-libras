@@ -3,8 +3,8 @@ import { encodeCapture, MIN_FRAMES } from "../../shared/capture";
 import { assignHands } from "../../shared/hands";
 import { basicFlags, recordingMetrics } from "../../shared/metrics";
 import { api, ApiError, errorMessage, type NextSigns } from "../api";
+import { messageFor } from "../messages";
 import { useAuth } from "../auth";
-import { describeFewFrames, describeProblems } from "../capture/feedback";
 import { packFrames } from "../capture/pack";
 import { loadLandmarkers, recordFrames, startCamera, stopCamera, type Landmarkers } from "../capture/recorder";
 
@@ -25,7 +25,6 @@ export function Collect() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [count, setCount] = useState(0);
   const [message, setMessage] = useState("");
-  const [details, setDetails] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -46,7 +45,7 @@ export function Collect() {
       stream.current = await startCamera(video.current!);
       setPhase("ready");
     } catch {
-      setMessage("Não foi possível ligar a câmera. Permita o acesso à câmera e tente de novo.");
+      setMessage(messageFor("camera_error"));
       setPhase("idle");
     }
   }
@@ -56,7 +55,6 @@ export function Collect() {
     if (!sign || !video.current || !landmarkers.current) return;
     setSaved(false);
     setMessage("");
-    setDetails([]);
     try {
       setPhase("countdown");
       for (let i = COUNTDOWN; i > 0; i -= 1) {
@@ -71,16 +69,14 @@ export function Collect() {
       });
       const capture = packFrames(frames);
       if (capture.frameCount < MIN_FRAMES) {
-        const seconds = capture.frameCount > 1 ? capture.timestamps[capture.frameCount - 1] / 1000 : RECORD_MAX_MS / 1000;
-        setMessage(describeFewFrames(capture.frameCount, seconds));
+        setMessage(messageFor("few_frames"));
         return;
       }
       // Same rules as the server. The server still decides, but the person sees the reason at once.
       const metrics = recordingMetrics(assignHands(capture));
       const flags = basicFlags(metrics);
       if (flags.length > 0) {
-        setMessage("Esta gravação não foi enviada.");
-        setDetails(describeProblems(flags, metrics));
+        setMessage(flags.map(messageFor).join(" "));
         return;
       }
       setPhase("sending");
@@ -103,8 +99,7 @@ export function Collect() {
       if (error instanceof ApiError && error.code === "low_quality") {
         // The server did not save it, so a new try is a new recording.
         clientId.current = crypto.randomUUID();
-        setMessage("O servidor não aceitou esta gravação.");
-        setDetails(describeProblems((error.detail.validation_flags as string[]) ?? [], error.detail.metrics as never));
+        setMessage(((error.detail.validation_flags as string[]) ?? ["low_quality"]).map(messageFor).join(" "));
       } else {
         setMessage(errorMessage(error));
       }
@@ -116,7 +111,6 @@ export function Collect() {
   function next() {
     setSaved(false);
     setMessage("");
-    setDetails([]);
     setIndex((i) => i + 1);
   }
 
@@ -150,7 +144,6 @@ export function Collect() {
       {phase === "recording" && <p>Gravando…</p>}
       {phase === "sending" && <p>Enviando…</p>}
       {message && <p className={saved ? "ok" : "form-error"} role="status">{message}</p>}
-      {details.length > 0 && <ul>{details.map((text) => <li key={text}>{text}</li>)}</ul>}
       {phase === "idle" && <button className="button button--primary" onClick={turnOn}>Ligar a câmera</button>}
       {phase === "starting" && <p className="muted">Carregando o detector…</p>}
       {phase !== "idle" && phase !== "starting" && (

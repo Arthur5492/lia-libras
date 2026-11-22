@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
 import { HandMark } from "../components/HandMark";
+import { messageFor } from "../messages";
 
 export function SignIn() {
   const { signIn } = useAuth();
@@ -32,7 +33,7 @@ export function SignIn() {
         <button className="button button--primary" onClick={handleSignIn} disabled={busy}>
           {busy ? "Abrindo o Google…" : "Entrar com Google"}
         </button>
-        {failed && <p className="form-error" role="alert">Não foi possível entrar. Tente de novo.</p>}
+        {failed && <p className="form-error" role="alert">{messageFor("sign_in_failed")}</p>}
         <p className="signin__alt">
           Só quer testar? <Link to="/reconhecer">Reconhecer sinais sem entrar</Link>
         </p>

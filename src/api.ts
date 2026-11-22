@@ -1,5 +1,6 @@
 import type { UploadBody } from "../shared/capture";
 import { auth } from "./firebase";
+import { messageFor } from "./messages";
 
 export type TrustLevel = "regular" | "trusted" | "expert";
 
@@ -116,28 +117,7 @@ export const api = {
   updateSign: (id: string, input: Partial<SignInput>) => request<Sign>("PATCH", `/api/admin/signs/${id}`, input),
 };
 
-const MESSAGES: Record<string, string> = {
-  network_error: "Sem conexão. Verifique a internet e tente de novo.",
-  invalid_username: "Use de 3 a 20 letras, números ou _ (sem espaços).",
-  blocked_username: "Esse nome não pode ser usado. Escolha outro.",
-  username_taken: "Esse nome já está em uso. Escolha outro.",
-  already_registered: "Esta conta já tem cadastro.",
-  consent_required: "Aceite o termo para continuar.",
-  busy_retry: "O servidor está ocupado. Tente de novo.",
-  invalid_token: "Sua sessão expirou. Entre de novo.",
-  low_quality: "O corpo ou as mãos não apareceram o bastante. Grave de novo com o corpo e as mãos visíveis.",
-  sign_complete: "Você já gravou todas as repetições deste sinal.",
-  unknown_sign: "Esse sinal não está mais disponível.",
-  upload_in_progress: "O envio anterior ainda está em andamento. Espere um instante.",
-  storage_error: "Não foi possível guardar a gravação. Tente de novo.",
-  admin_only: "Só administradores podem fazer isso.",
-  slug_taken: "Já existe um sinal com esse nome.",
-  invalid_sign: "Informe o nome e um link de vídeo que comece com https://.",
-  sign_not_found: "Esse sinal não existe mais. Recarregue a página.",
-};
-
-/** Message in Portuguese for the person, from an error code. */
+/** Message for the person, from an error. The texts are in messages.ts. */
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return MESSAGES[error.code] ?? `Algo deu errado (${error.code}). Tente de novo.`;
-  return "Algo deu errado. Tente de novo.";
+  return messageFor(error instanceof ApiError ? error.code : "unknown_error");
 }
