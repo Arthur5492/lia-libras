@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { encodeCapture } from "../../shared/capture";
+import { encodeCapture, MIN_FRAMES } from "../../shared/capture";
+import { assignHands } from "../../shared/hands";
+import { basicFlags, recordingMetrics } from "../../shared/metrics";
 import { api, ApiError, errorMessage, type NextSigns } from "../api";
 import { useAuth } from "../auth";
+import { describeFewFrames, describeProblems } from "../capture/feedback";
 import { packFrames } from "../capture/pack";
 import { loadLandmarkers, recordFrames, startCamera, stopCamera, type Landmarkers } from "../capture/recorder";
 
 const CAPTURE_VERSION = "pwa-0.1.0";
 const RECORD_MS = 2000;
+// The server rejects a capture longer than 4000 ms, so stop before that.
+const RECORD_MAX_MS = 3800;
 const COUNTDOWN = 3;
 
 type Phase = "idle" | "starting" | "ready" | "countdown" | "recording" | "sending";
@@ -20,6 +25,7 @@ export function Collect() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [count, setCount] = useState(0);
   const [message, setMessage] = useState("");
+  const [details, setDetails] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -50,6 +56,7 @@ export function Collect() {
     if (!sign || !video.current || !landmarkers.current) return;
     setSaved(false);
     setMessage("");
+    setDetails([]);
     try {
       setPhase("countdown");
       for (let i = COUNTDOWN; i > 0; i -= 1) {
@@ -57,9 +64,25 @@ export function Collect() {
         await wait(1000);
       }
       setPhase("recording");
-      const frames = await recordFrames(video.current, landmarkers.current, RECORD_MS);
+      const frames = await recordFrames(video.current, landmarkers.current, {
+        durationMs: RECORD_MS,
+        minFrames: MIN_FRAMES,
+        maxMs: RECORD_MAX_MS,
+      });
       const capture = packFrames(frames);
-      if (capture.frameCount < 15) throw new Error("few_frames");
+      if (capture.frameCount < MIN_FRAMES) {
+        const seconds = capture.frameCount > 1 ? capture.timestamps[capture.frameCount - 1] / 1000 : RECORD_MAX_MS / 1000;
+        setMessage(describeFewFrames(capture.frameCount, seconds));
+        return;
+      }
+      // Same rules as the server. The server still decides, but the person sees the reason at once.
+      const metrics = recordingMetrics(assignHands(capture));
+      const flags = basicFlags(metrics);
+      if (flags.length > 0) {
+        setMessage("Esta gravação não foi enviada.");
+        setDetails(describeProblems(flags, metrics));
+        return;
+      }
       setPhase("sending");
       await api.upload({
         client_id: clientId.current,
@@ -77,12 +100,11 @@ export function Collect() {
       setSaved(true);
       setMessage("Gravação salva.");
     } catch (error) {
-      if (error instanceof Error && error.message === "few_frames") {
-        setMessage("O aparelho processou poucos quadros. Tente de novo.");
-      } else if (error instanceof ApiError && error.code === "low_quality") {
+      if (error instanceof ApiError && error.code === "low_quality") {
         // The server did not save it, so a new try is a new recording.
         clientId.current = crypto.randomUUID();
-        setMessage(errorMessage(error));
+        setMessage("O servidor não aceitou esta gravação.");
+        setDetails(describeProblems((error.detail.validation_flags as string[]) ?? [], error.detail.metrics as never));
       } else {
         setMessage(errorMessage(error));
       }
@@ -94,6 +116,7 @@ export function Collect() {
   function next() {
     setSaved(false);
     setMessage("");
+    setDetails([]);
     setIndex((i) => i + 1);
   }
 
@@ -127,6 +150,7 @@ export function Collect() {
       {phase === "recording" && <p>Gravando…</p>}
       {phase === "sending" && <p>Enviando…</p>}
       {message && <p className={saved ? "ok" : "form-error"} role="status">{message}</p>}
+      {details.length > 0 && <ul>{details.map((text) => <li key={text}>{text}</li>)}</ul>}
       {phase === "idle" && <button className="button button--primary" onClick={turnOn}>Ligar a câmera</button>}
       {phase === "starting" && <p className="muted">Carregando o detector…</p>}
       {phase !== "idle" && phase !== "starting" && (

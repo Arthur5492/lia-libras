@@ -72,10 +72,15 @@ function detect(video: HTMLVideoElement, landmarkers: Landmarkers, t: number): R
 }
 
 /**
- * Detect on each new video frame for `durationMs`. The time of each frame comes from performance.now(),
- * so it always goes up, as the detectors need.
+ * Detect on each new video frame. Stop after `durationMs`, but keep going until there are `minFrames`,
+ * up to `maxMs`. A slow device (or a frame with no person, which is slower to detect) then still gets enough frames.
+ * The time of each frame comes from performance.now(), so it always goes up, as the detectors need.
  */
-export function recordFrames(video: HTMLVideoElement, landmarkers: Landmarkers, durationMs: number): Promise<RawFrame[]> {
+export function recordFrames(
+  video: HTMLVideoElement,
+  landmarkers: Landmarkers,
+  limits: { durationMs: number; minFrames: number; maxMs: number },
+): Promise<RawFrame[]> {
   return new Promise((resolve, reject) => {
     const frames: RawFrame[] = [];
     const start = performance.now();
@@ -83,7 +88,10 @@ export function recordFrames(video: HTMLVideoElement, landmarkers: Landmarkers, 
     let lastT = -1;
     const step = () => {
       const now = performance.now();
-      if (now - start >= durationMs) return resolve(frames);
+      const elapsed = now - start;
+      if (elapsed >= limits.maxMs || (elapsed >= limits.durationMs && frames.length >= limits.minFrames)) {
+        return resolve(frames);
+      }
       try {
         if (video.currentTime !== lastVideoTime && now > lastT) {
           lastVideoTime = video.currentTime;
