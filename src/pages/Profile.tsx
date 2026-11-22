@@ -40,6 +40,7 @@ export function Profile() {
         <span>Mostrar meu nome de usuário no ranking público.</span>
       </label>
       {error && <p className="form-error" role="alert">{error}</p>}
+      <p><Link to="/gravacoes">Minhas gravações</Link></p>
       {profile.role === "admin" && (
         <p><Link to="/admin/sinais">Gerenciar sinais</Link></p>
       )}

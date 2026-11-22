@@ -4,6 +4,7 @@ import { messageFor } from "./messages";
 import { useAuth } from "./auth";
 import { AdminSigns } from "./pages/AdminSigns";
 import { Collect } from "./pages/Collect";
+import { MyRecordings } from "./pages/MyRecordings";
 import { Profile } from "./pages/Profile";
 import { Recognize } from "./pages/Recognize";
 import { Register } from "./pages/Register";
@@ -83,6 +84,7 @@ export function App() {
           <Route path="coletar" element={<Collect />} />
           <Route path="analisar" element={<Review />} />
           <Route path="perfil" element={<Profile />} />
+          <Route path="gravacoes" element={<MyRecordings />} />
           <Route element={<NeedsAdmin />}>
             <Route path="admin/sinais" element={<AdminSigns />} />
           </Route>

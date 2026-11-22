@@ -28,6 +28,8 @@ const MESSAGES: Record<string, string> = {
   sign_complete: "Todas as repetições deste sinal já foram gravadas.",
   unknown_sign: "Sinal não disponível.",
   upload_in_progress: "O envio anterior ainda está em andamento.",
+  recording_not_found: "Gravação não encontrada.",
+  recording_file_missing: "O arquivo da gravação não está mais disponível.",
   storage_error: "Não foi possível guardar a gravação.",
   camera_error: "Não foi possível ligar a câmera.",
 

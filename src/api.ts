@@ -1,6 +1,7 @@
 import type { UploadBody } from "../shared/capture";
 import { auth } from "./firebase";
 import { messageFor } from "./messages";
+import type { ReplayData } from "./replay/draw";
 
 export type TrustLevel = "regular" | "trusted" | "expert";
 
@@ -50,6 +51,7 @@ export interface Recording {
   status: string;
   frame_count: number;
   validation_flags: string[];
+  created_at?: string | null;
 }
 
 export interface NextSigns {
@@ -112,6 +114,9 @@ export const api = {
   nextSigns: (count = 5) => request<NextSigns>("GET", `/api/collect/next?count=${count}`),
   upload: (body: UploadBody) =>
     request<{ recording: Recording; duplicate: boolean }>("POST", "/api/recordings", body),
+  myRecordings: () => request<{ items: Recording[] }>("GET", "/api/me/recordings"),
+  replay: (id: string) => request<ReplayData & { recording: Recording }>("GET", `/api/recordings/${id}/replay`),
+  deleteRecording: (id: string) => request<void>("DELETE", `/api/me/recordings/${id}`),
   adminSigns: () => request<Catalog>("GET", "/api/admin/signs"),
   createSign: (input: SignInput) => request<Sign>("POST", "/api/admin/signs", input),
   updateSign: (id: string, input: Partial<SignInput>) => request<Sign>("PATCH", `/api/admin/signs/${id}`, input),
