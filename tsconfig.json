@@ -26,6 +26,7 @@
     "server",
     "api",
     "tests/server",
+    "tests/capture",
     "vite.config.ts",
     "vitest.config.ts"
   ]

@@ -1,3 +1,4 @@
+import type { UploadBody } from "../shared/capture";
 import { auth } from "./firebase";
 
 export type TrustLevel = "regular" | "trusted" | "expert";
@@ -39,6 +40,21 @@ export interface SignInput {
   sign_metadata: Record<string, boolean>;
   order: number;
   active?: boolean;
+}
+
+export interface Recording {
+  id: string;
+  sign_id: string;
+  video_idx: number;
+  status: string;
+  frame_count: number;
+  validation_flags: string[];
+}
+
+export interface NextSigns {
+  target_per_sign: number;
+  remaining_signs: number;
+  signs: Sign[];
 }
 
 export interface Stats {
@@ -92,6 +108,9 @@ export const api = {
     ),
   signs: () => request<{ signs: Sign[] }>("GET", "/api/signs"),
   stats: () => request<Stats>("GET", "/api/stats"),
+  nextSigns: (count = 5) => request<NextSigns>("GET", `/api/collect/next?count=${count}`),
+  upload: (body: UploadBody) =>
+    request<{ recording: Recording; duplicate: boolean }>("POST", "/api/recordings", body),
   adminSigns: () => request<Catalog>("GET", "/api/admin/signs"),
   createSign: (input: SignInput) => request<Sign>("POST", "/api/admin/signs", input),
   updateSign: (id: string, input: Partial<SignInput>) => request<Sign>("PATCH", `/api/admin/signs/${id}`, input),
@@ -106,6 +125,11 @@ const MESSAGES: Record<string, string> = {
   consent_required: "Aceite o termo para continuar.",
   busy_retry: "O servidor está ocupado. Tente de novo.",
   invalid_token: "Sua sessão expirou. Entre de novo.",
+  low_quality: "O corpo ou as mãos não apareceram o bastante. Grave de novo com o corpo e as mãos visíveis.",
+  sign_complete: "Você já gravou todas as repetições deste sinal.",
+  unknown_sign: "Esse sinal não está mais disponível.",
+  upload_in_progress: "O envio anterior ainda está em andamento. Espere um instante.",
+  storage_error: "Não foi possível guardar a gravação. Tente de novo.",
   admin_only: "Só administradores podem fazer isso.",
   slug_taken: "Já existe um sinal com esse nome.",
   invalid_sign: "Informe o nome e um link de vídeo que comece com https://.",
