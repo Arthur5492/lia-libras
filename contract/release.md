@@ -26,6 +26,7 @@ One row for each recording with status `accepted` at the time of the release.
 | `uuid` | Random identifier of the person |
 | `video_idx` | Recording index |
 | `schema_version` | `.npz` format version |
+| `frame_count`, `duration_ms` | Frames and duration of the recording |
 | `created_at` | Upload time, ISO 8601 UTC |
 | `pose_rate`, `left_hand_rate`, `right_hand_rate` | Detection rates |
 | `active_hand` | `left`, `right` or `unknown` (extra data only) |
@@ -43,14 +44,24 @@ The file has no username, email, Firebase uid or trust level.
 }
 ```
 
-## Script
-`scripts/publish_release.ts` (not written yet):
-1. Read the catalog and the `accepted` recordings from Firestore.
-2. Make sure that each `.npz` file exists in the bucket. Stop if a file is missing.
-3. Write `index.csv`, `signs.json` and `README.md` to a new `releases/v<N>/` folder.
-4. Write `releases/latest.json` last.
+## Commands
+Run them from the project folder. They read `.env` (see `.env.example`): the Firebase service account, the HF token and the bucket name.
 
-With the option `--local <folder>`, the script also downloads the files for training, without a publish.
+```bash
+npm run release -- publish --dry-run      # check everything, write nothing
+npm run release -- publish                # write releases/v<N>/ and then releases/latest.json
+npm run release -- download latest data   # download index.csv, signs.json and the .npz files, for training
+```
+
+`publish`:
+1. Read the catalog and the `accepted` recordings from Firestore.
+2. Make sure that each `.npz` file exists in the bucket. Stop if a file is missing, and write nothing.
+3. Write `index.csv`, `signs.json` and `README.md` to a new `releases/v<N>/` folder.
+4. Write `releases/latest.json` last, so a reader never sees a release that is not complete.
+
+`download` skips a recording that a person deleted after the release, and says how many.
+
+The code is in `server/release.ts`. The tests are in `tests/server/release.test.ts`.
 
 ## Deleted recordings
 When a person deletes a recording, the API deletes the `.npz` file and the Firestore document. A release that has this recording keeps the row, but the file is not available. Tell users of old releases about this in the README.

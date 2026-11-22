@@ -170,6 +170,7 @@ describe.skipIf(!EMULATED)("api", () => {
       put: async () => { throw new Error("unavailable"); },
       get: async () => null,
       delete: async () => {},
+      exists: async () => false,
     };
     setStorage(failing);
     const response = await p.post("/api/recordings", makeBody(signId));

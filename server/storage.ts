@@ -1,5 +1,5 @@
 // Storage for `.npz` files: a local folder (for tests) or the HF bucket.
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getSettings } from "./settings.js";
 
@@ -8,6 +8,8 @@ export interface Storage {
   /** Return null when the file does not exist. */
   get(filePath: string): Promise<Uint8Array | null>;
   delete(filePath: string): Promise<void>;
+  /** Check that a file exists, without a download. */
+  exists(filePath: string): Promise<boolean>;
 }
 
 function checkPath(filePath: string): string {
@@ -43,6 +45,10 @@ export class LocalStorage implements Storage {
   async delete(filePath: string): Promise<void> {
     await rm(this.file(filePath), { force: true });
   }
+
+  async exists(filePath: string): Promise<boolean> {
+    return stat(this.file(filePath)).then(() => true, () => false);
+  }
 }
 
 // The library loads only when the bucket is used, so the other routes do not depend on it.
@@ -70,6 +76,11 @@ export class HfBucketStorage implements Storage {
     const { downloadFile } = await hub();
     const blob = await downloadFile({ repo: this.repo, accessToken: this.token, path: checkPath(filePath) });
     return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  }
+
+  async exists(filePath: string): Promise<boolean> {
+    const { fileExists } = await hub();
+    return fileExists({ repo: this.repo, accessToken: this.token, path: checkPath(filePath) });
   }
 
   async delete(filePath: string): Promise<void> {

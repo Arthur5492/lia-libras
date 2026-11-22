@@ -25,6 +25,7 @@
     "shared",
     "server",
     "api",
+    "scripts",
     "tests/server",
     "tests/capture",
     "vite.config.ts",
