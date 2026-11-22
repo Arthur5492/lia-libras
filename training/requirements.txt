@@ -1,0 +1,4 @@
+# For the tests that do not need TensorFlow, numpy is enough.
+numpy>=1.26
+# To train, use the environment of lstm_libras (Windows, AMD GPU): Python 3.10, tensorflow-cpu 2.10 and
+# tensorflow-directml-plugin. See lstm_libras/requirements.txt. Any TensorFlow 2.10 or later also works.

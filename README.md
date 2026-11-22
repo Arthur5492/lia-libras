@@ -6,6 +6,7 @@ PWA to collect, review and recognize Libras signs. The video stays on the device
 - `server/`: API (Hono). `api/index.ts` is the Vercel entry point.
 - `shared/`: code that the site and the API use (capture format, hand rule, metrics).
 - `contract/`: data formats, Firestore schema, API routes and release format.
+- `training/`: training of the recognition model (Python).
 - `tests/`: API tests and Firestore rules tests.
 
 ## Local development
@@ -36,6 +37,14 @@ npx firebase emulators:exec --only auth,firestore --project demo-libras "npm tes
 ```
 
 GitHub Actions runs the type check, the tests and the build on each push (`.github/workflows/ci.yml`).
+
+## Releases and training
+A release is a fixed list of the accepted recordings (`contract/release.md`). The model is trained on a release, on your computer (`training/README.md`).
+
+```bash
+npm run release -- publish          # needs the variables of .env
+npm run release -- download latest training/data
+```
 
 ## Error and alert messages
 The texts for errors and alerts are placeholders. All of them are in `src/messages.ts`, and each one has a stable code (see `contract/api.md`). To change a text, change that file only.

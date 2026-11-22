@@ -29,3 +29,7 @@ ui-debug.log
 # Local tools
 .claude/
 *.tsbuildinfo
+
+# Training data and output
+training/data/
+training/out/
