@@ -30,6 +30,8 @@ const MESSAGES: Record<string, string> = {
   upload_in_progress: "O envio anterior ainda está em andamento.",
   recording_not_found: "Gravação não encontrada.",
   recording_file_missing: "O arquivo da gravação não está mais disponível.",
+  cannot_review_own: "Você não pode revisar as suas próprias gravações.",
+  invalid_status: "Status não válido.",
   storage_error: "Não foi possível guardar a gravação.",
   camera_error: "Não foi possível ligar a câmera.",
 

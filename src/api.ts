@@ -52,7 +52,18 @@ export interface Recording {
   frame_count: number;
   validation_flags: string[];
   created_at?: string | null;
+  user_trust_level?: string;
+  /** Only in the review list: the recording belongs to the person who looks at it. */
+  is_own?: boolean;
 }
+
+export interface ReviewQuery {
+  status: string;
+  sign_id?: string;
+  cursor?: string;
+}
+
+export type ReviewChoice = "accepted" | "rejected" | "pending";
 
 export interface NextSigns {
   target_per_sign: number;
@@ -117,6 +128,14 @@ export const api = {
   myRecordings: () => request<{ items: Recording[] }>("GET", "/api/me/recordings"),
   replay: (id: string) => request<ReplayData & { recording: Recording }>("GET", `/api/recordings/${id}/replay`),
   deleteRecording: (id: string) => request<void>("DELETE", `/api/me/recordings/${id}`),
+  reviewList: (query: ReviewQuery) => {
+    const params = new URLSearchParams({ status: query.status });
+    if (query.sign_id) params.set("sign_id", query.sign_id);
+    if (query.cursor) params.set("cursor", query.cursor);
+    return request<{ items: Recording[]; next_cursor: string | null }>("GET", `/api/review/recordings?${params}`);
+  },
+  review: (id: string, status: ReviewChoice) =>
+    request<{ items: Recording[] }>("PATCH", "/api/review/recordings", { updates: [{ id, status }] }),
   adminSigns: () => request<Catalog>("GET", "/api/admin/signs"),
   createSign: (input: SignInput) => request<Sign>("POST", "/api/admin/signs", input),
   updateSign: (id: string, input: Partial<SignInput>) => request<Sign>("PATCH", `/api/admin/signs/${id}`, input),

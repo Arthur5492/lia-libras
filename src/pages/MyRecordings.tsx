@@ -1,29 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, errorMessage, type Recording, type Sign } from "../api";
 import { useAuth } from "../auth";
-import { drawFrame, duration, frameAt, type ReplayData } from "../replay/draw";
-
-/** Play the replay in a loop on a canvas, with the real time of each frame. */
-function Player({ replay }: { replay: ReplayData }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const ctx = canvas.current!.getContext("2d")!;
-    const total = Math.max(duration(replay.timestamps_ms), 1);
-    const start = performance.now();
-    let id = 0;
-    const step = () => {
-      const t = (performance.now() - start) % total;
-      drawFrame(ctx, replay, frameAt(replay.timestamps_ms, t));
-      id = requestAnimationFrame(step);
-    };
-    id = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(id);
-  }, [replay]);
-
-  return <canvas ref={canvas} width={320} height={240} />;
-}
+import { Player } from "../components/Player";
+import type { ReplayData } from "../replay/draw";
 
 export function MyRecordings() {
   const { setProfile } = useAuth();
