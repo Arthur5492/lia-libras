@@ -151,6 +151,7 @@ export const api = {
   },
   review: (id: string, status: ReviewChoice, reason?: RejectionReason) =>
     request<{ items: Recording[] }>("PATCH", "/api/review/recordings", { updates: [{ id, status, reason }] }),
+  skipReview: (id: string) => request<void>("POST", `/api/review/recordings/${id}/skip`, {}),
   notifications: (cursor?: string) =>
     request<{ items: Notification[]; unread_count: number; next_cursor: string | null }>(
       "GET", `/api/me/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
