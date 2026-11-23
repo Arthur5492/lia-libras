@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { loadLandmarkers, startCamera, stopCamera, type Landmarkers } from "./recorder";
+import { loadLandmarkers, startCameraWithRetry, stopCamera, type Landmarkers } from "./recorder";
 
 /**
  * Turn on the camera in a video element and load the detectors. `retry` tries again after a failure.
@@ -17,7 +17,7 @@ export function useCamera(video: RefObject<HTMLVideoElement | null>) {
     (async () => {
       try {
         const marks = await loadLandmarkers();
-        const media = await startCamera(video.current!);
+        const media = await startCameraWithRetry(video.current!, () => active);
         if (!active) {
           stopCamera(media);
           return;

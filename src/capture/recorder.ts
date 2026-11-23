@@ -50,6 +50,28 @@ export async function startCamera(video: HTMLVideoElement): Promise<MediaStream>
   return stream;
 }
 
+const CAMERA_ATTEMPTS = 4;
+const CAMERA_RETRY_MS = 500;
+const NOT_TRANSIENT = ["NotAllowedError", "NotFoundError", "SecurityError", "OverconstrainedError"];
+
+/**
+ * Turn on the camera, and try again if it fails. The camera can still be busy at the start of a screen:
+ * the screen before it may not have released the camera yet. A refusal of the person or a missing camera
+ * will not change, so those fail at once. `active` tells if the screen is still open.
+ */
+export async function startCameraWithRetry(video: HTMLVideoElement, active: () => boolean): Promise<MediaStream> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await startCamera(video);
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
+      console.warn(`Camera attempt ${attempt} failed:`, name || error);
+      if (!active() || attempt >= CAMERA_ATTEMPTS || NOT_TRANSIENT.includes(name)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, CAMERA_RETRY_MS));
+    }
+  }
+}
+
 export function stopCamera(stream: MediaStream | null): void {
   stream?.getTracks().forEach((track) => track.stop());
 }
