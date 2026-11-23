@@ -131,6 +131,28 @@ describe("metrics", () => {
     expect(basicFlags(recordingMetrics(makeCapture()))).toEqual([]);
   });
 
+  test("the motion score does not change with the distance to the camera", () => {
+    // The same movement of a person that is twice as far: all the points come closer to the center of the picture.
+    const shrink = (values: Float32Array, stride: number) => {
+      for (let i = 0; i < values.length; i += 1) {
+        if (i % stride < 2) values[i] = 0.5 + (values[i] - 0.5) * 0.5;
+      }
+    };
+    const near = makeCapture();
+    const far = makeCapture();
+    shrink(far.pose, 4);
+    for (const hand of far.hands) shrink(hand.image, 3);
+    const score = recordingMetrics(near).motion_score;
+    expect(score).toBeGreaterThan(0.5);
+    expect(recordingMetrics(far).motion_score).toBeCloseTo(score, 5);
+  });
+
+  test("a frame without good shoulders does not count for the motion", () => {
+    const capture = makeCapture();
+    for (let i = 0; i < capture.frameCount; i += 1) capture.pose.set([0.4, 0.4], (i * 33 + 12) * 4);
+    expect(recordingMetrics(capture).motion_score).toBe(0);
+  });
+
   test("reference profile", () => {
     const moving = recordingMetrics(makeCapture());
     const profiles = { min_references: 3, profiles: { s: buildProfile([moving, moving, moving]) } };

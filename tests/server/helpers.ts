@@ -57,6 +57,9 @@ export function makeCapture(options: CaptureOptions = {}): Capture {
     if (i >= (options.poseMissing ?? 0)) {
       capture.poseMask[i] = 1;
       for (let j = 0; j < POSE_POINTS; j += 1) capture.pose.set([0.5, 0.5, 0, 0.99], (i * POSE_POINTS + j) * POSE_DIMS);
+      // The shoulders are 0.2 apart, so the motion score has a scale.
+      capture.pose.set([0.4, 0.4, 0, 0.99], (i * POSE_POINTS + 11) * POSE_DIMS);
+      capture.pose.set([0.6, 0.4, 0, 0.99], (i * POSE_POINTS + 12) * POSE_DIMS);
       capture.pose.set([...LEFT_WRIST, 0, 0.99], (i * POSE_POINTS + 15) * POSE_DIMS);
       capture.pose.set([RIGHT_WRIST[0] + dx, RIGHT_WRIST[1], 0, 0.99], (i * POSE_POINTS + 16) * POSE_DIMS);
     }

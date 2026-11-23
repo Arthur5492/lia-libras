@@ -1,5 +1,5 @@
 // Quality metrics and validation against reference profiles.
-import { HAND_DIMS, HAND_POINTS, LEFT, RIGHT, type Capture, type HandChannel } from "./capture.js";
+import { HAND_DIMS, HAND_POINTS, LEFT, POSE_DIMS, POSE_POINTS, RIGHT, type Capture, type HandChannel } from "./capture.js";
 
 export const POSE_RATE_MIN = 0.8;
 export const ANY_HAND_RATE_MIN = 0.3;
@@ -40,19 +40,42 @@ function handCenter(hand: HandChannel, frame: number): [number, number] {
   return [x / HAND_POINTS, y / HAND_POINTS];
 }
 
-/** Path length of the center of the visible hands, in image coordinates. */
+const LEFT_SHOULDER = 11;
+const RIGHT_SHOULDER = 12;
+/** A shoulder width below this (in image units) is a bad detection. A frame with it does not count for the motion. */
+const MIN_SHOULDER_WIDTH = 0.02;
+
+/** The middle of the shoulders and their distance in one frame. Null if the frame has no good pose. */
+function shoulders(capture: Capture, frame: number): { origin: [number, number]; width: number } | null {
+  if (!capture.poseMask[frame]) return null;
+  const at = (point: number) => (frame * POSE_POINTS + point) * POSE_DIMS;
+  const lx = capture.pose[at(LEFT_SHOULDER)];
+  const ly = capture.pose[at(LEFT_SHOULDER) + 1];
+  const rx = capture.pose[at(RIGHT_SHOULDER)];
+  const ry = capture.pose[at(RIGHT_SHOULDER) + 1];
+  const width = Math.hypot(lx - rx, ly - ry);
+  return width < MIN_SHOULDER_WIDTH ? null : { origin: [(lx + rx) / 2, (ly + ry) / 2], width };
+}
+
+/**
+ * Path length of the center of the visible hands, in shoulder widths. Each center is measured from the middle of
+ * the shoulders, so the distance to the camera and the place of the body in the picture do not change the score.
+ * A frame without good shoulders does not count.
+ */
 export function motionScore(capture: Capture): number {
   const [left, right] = capture.hands;
   let total = 0;
   let previous: [number, number] | null = null;
   for (let i = 0; i < capture.frameCount; i += 1) {
+    const body = shoulders(capture, i);
+    if (!body) continue;
     const centers: [number, number][] = [];
     if (left.mask[i]) centers.push(handCenter(left, i));
     if (right.mask[i]) centers.push(handCenter(right, i));
     if (centers.length === 0) continue;
     const center: [number, number] = [
-      centers.reduce((s, c) => s + c[0], 0) / centers.length,
-      centers.reduce((s, c) => s + c[1], 0) / centers.length,
+      (centers.reduce((s, c) => s + c[0], 0) / centers.length - body.origin[0]) / body.width,
+      (centers.reduce((s, c) => s + c[1], 0) / centers.length - body.origin[1]) / body.width,
     ];
     if (previous) total += Math.hypot(center[0] - previous[0], center[1] - previous[1]);
     previous = center;

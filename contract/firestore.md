@@ -75,7 +75,7 @@ The id is fixed: a second upload of the same recording does not make a new docum
 | `frame_count`, `duration_ms` | int | |
 | `client_id` | string | UUID that the device makes for each recording. A retry with the same value gives the saved recording |
 | `reserved_at` | timestamp | Time of the index reservation |
-| `pose_rate`, `left_hand_rate`, `right_hand_rate`, `any_hand_rate`, `both_hands_rate`, `motion_score` | number | |
+| `pose_rate`, `left_hand_rate`, `right_hand_rate`, `any_hand_rate`, `both_hands_rate`, `motion_score` | number | `motion_score` is in shoulder widths (see `shared/metrics.ts`) |
 | `active_hand` | `left` \| `right` \| `unknown` | Extra data (see npz.md) |
 | `validation_flags` | array of string | Codes, never messages |
 | `reference_similarity_score` | number \| null | |
