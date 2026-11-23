@@ -7,6 +7,7 @@ import { recordingMetrics } from "../../shared/metrics";
 import { api, ApiError, errorMessage, type NextSigns } from "../api";
 import { useAuth } from "../auth";
 import { missingInFrame, type Missing } from "../../shared/framing";
+import { FramingTracker, type Framing } from "../capture/framingTracker";
 import { drawLive } from "../capture/overlay";
 import { packFrames } from "../capture/pack";
 import { loadLandmarkers, recordFrames, startCamera, stopCamera, watchFrames, type Landmarkers } from "../capture/recorder";
@@ -27,21 +28,12 @@ const RECORD_MS = 2000;
 const RECORD_MAX_MS = 3800;
 const OK_MS = 1000;
 const BAD_MS = 1800;
-// The detector loses a point easily. The state of the framing changes only after some frames in a row,
-// so one bad frame does not stop the person. At 12 frames each second, 6 frames are half a second.
-const GOOD_FRAMES = 3;
-const BAD_FRAMES = 6;
 // The hint about the framing comes after this time, so a short loss does not show a message.
 const HINT_DELAY_MS = 1500;
 // After a sign is complete, the swipe does not count for this time, so the person sees the celebration.
 const COMPLETE_GRACE_MS = 1200;
 
 type Phase = "starting" | "ready" | "countdown" | "recording" | "result" | "complete" | "error";
-
-interface Framing {
-  state: "unknown" | "ok" | "bad";
-  missing: Missing | null;
-}
 
 interface Result {
   ok: boolean;
@@ -93,7 +85,7 @@ export function Collect() {
   const saved = useRef<Saved[]>([]);
   const run = useRef(0);
   const framingRef = useRef<Framing>(framing);
-  const streak = useRef({ good: 0, bad: 0 });
+  const tracker = useRef(new FramingTracker());
   // Values that the callbacks of the gesture engine and of the timers must read when they run, not when they were made.
   const live = useRef({ phase, sign: undefined as NextSigns["signs"][number] | undefined, index, done });
   const engine = useRef<GestureEngine | null>(null);
@@ -152,8 +144,8 @@ export function Collect() {
     let active = true;
     setPhase("starting");
     stopCamera(stream.current);
-    framingRef.current = { state: "unknown", missing: null };
-    streak.current = { good: 0, bad: 0 };
+    tracker.current.reset();
+    framingRef.current = tracker.current.state;
     setFraming(framingRef.current);
     (async () => {
       try {
@@ -215,7 +207,7 @@ export function Collect() {
         }
         return;
       }
-      updateFraming(missingInFrame(frame.pose?.image));
+      updateFraming(missingInFrame(frame.pose?.image), frame.t);
       const state = framingRef.current.state;
       drawLive(canvas, camera, frame, state === "unknown" ? "neutral" : state);
       // Only a person in the picture can start the recording with a gesture.
@@ -231,20 +223,9 @@ export function Collect() {
     };
   }, [phase]);
 
-  /** Count the frames in a row, and change the state of the framing only after some of them. */
-  function updateFraming(missing: Missing | null) {
-    const count = streak.current;
-    if (missing === null) {
-      count.good += 1;
-      count.bad = 0;
-    } else {
-      count.bad += 1;
-      count.good = 0;
-    }
-    const now = framingRef.current;
-    let next: Framing | null = null;
-    if (now.state !== "ok" && count.good >= GOOD_FRAMES) next = { state: "ok", missing: null };
-    else if (count.bad >= BAD_FRAMES && (now.state !== "bad" || now.missing !== missing)) next = { state: "bad", missing };
+  /** Follow the framing of the person. The state changes only after some time, so it does not flicker. */
+  function updateFraming(missing: Missing | null, t: number) {
+    const next = tracker.current.update(missing, t);
     if (!next) return;
     framingRef.current = next;
     setFraming(next);
