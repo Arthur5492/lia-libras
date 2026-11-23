@@ -26,6 +26,8 @@ export default defineConfig({
       workbox: {
         // The service worker must not answer API calls or the Firebase sign-in pages.
         navigateFallbackDenylist: [/^\/api\//, /^\/__\//],
+        // The detector files are big. The browser loads them when it needs them and keeps them in its own cache.
+        globIgnores: ["**/mediapipe/**"],
       },
     }),
   ],

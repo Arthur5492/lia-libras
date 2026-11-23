@@ -28,6 +28,8 @@ In a second terminal, start the site:
 npm run dev
 ```
 
+`npm run dev` and `npm run build` first run `scripts/mediapipe.mjs`, which puts the detector files in `public/mediapipe/` (git ignores that folder). The first run needs the network.
+
 Local recordings go to the `local_bucket/` folder. The emulators do not keep data after they stop.
 
 ## Tests

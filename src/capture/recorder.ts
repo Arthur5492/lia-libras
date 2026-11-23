@@ -2,12 +2,10 @@
 import { FilesetResolver, HandLandmarker, PoseLandmarker } from "@mediapipe/tasks-vision";
 import type { RawFrame } from "./pack";
 
-// The detector files load from public CDNs. To serve them from this site, change these three constants.
-const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm";
-const HAND_MODEL =
-  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
-const POSE_MODEL =
-  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+// The site serves the detector files. scripts/mediapipe.mjs puts them in public/mediapipe/.
+const WASM = "/mediapipe/wasm";
+const HAND_MODEL = "/mediapipe/models/hand_landmarker.task";
+const POSE_MODEL = "/mediapipe/models/pose_landmarker_lite.task";
 
 export interface Landmarkers {
   hand: HandLandmarker;
