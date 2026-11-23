@@ -104,4 +104,30 @@ describe("Recognizer", () => {
     recognizer.setOptions({ stability: 2 });
     expect(feed(recognizer, 8, 1000).filter((w) => w !== null)).toEqual([0]);
   });
+
+  test("a sign that ends with the hands going down is counted before the same prediction repeats", () => {
+    // Needs 3 equal predictions, but the hands go down after the window was full and 2 runs only.
+    const { recognizer } = setup([[0.05, 0.95]]);
+    expect(feed(recognizer, 5).every((w) => w === null)).toBe(true);
+    const words: (number | null)[] = [];
+    for (let i = 0; i < 4; i += 1) words.push(recognizer.push(noHand(500 + i * 33)).word);
+    expect(words.filter((w) => w !== null)).toEqual([1]);
+  });
+
+  test("the last run does not count a sign that was just confirmed, or a weak prediction", () => {
+    const confirmed = setup([[0.95, 0.05]]);
+    expect(feed(confirmed.recognizer, 8).filter((w) => w !== null)).toEqual([0]);
+    for (let i = 0; i < 4; i += 1) expect(confirmed.recognizer.push(noHand(500 + i * 33)).word).toBeNull();
+
+    const weak = setup([[0.6, 0.4]]);
+    feed(weak.recognizer, 5);
+    for (let i = 0; i < 4; i += 1) expect(weak.recognizer.push(noHand(500 + i * 33)).word).toBeNull();
+  });
+
+  test("the last run needs a full window", () => {
+    const { recognizer, calls } = setup([[0.95, 0.05]]);
+    feed(recognizer, 1);
+    for (let i = 0; i < 4; i += 1) recognizer.push(noHand(500 + i * 33));
+    expect(calls).toEqual([]);
+  });
 });
