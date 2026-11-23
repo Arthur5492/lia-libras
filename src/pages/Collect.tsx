@@ -14,6 +14,7 @@ import { GestureEngine } from "../gestures/engine";
 import { BOTH_HANDS_OPEN } from "../gestures/rules";
 import { messageFor } from "../messages";
 import { useNotify } from "../notifications";
+import { ReferenceVideo } from "../components/ReferenceVideo";
 import { RecordButton } from "../ui/RecordButton";
 import { RoundButton } from "../ui/RoundButton";
 import { Sheet } from "../ui/Sheet";
@@ -366,7 +367,7 @@ export function Collect() {
   return (
     <main className="screen collect">
       <section className="panel" aria-label="Vídeo de referência">
-        {sign && <video key={sign.id} src={sign.video_url} autoPlay loop muted playsInline />}
+        {sign && <ReferenceVideo key={sign.id} src={sign.video_url} />}
       </section>
 
       <section className="panel panel--mirror" aria-label="Sua câmera">

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from "rea
 import { api, errorMessage, type RejectionReason, type Recording, type Sign } from "../api";
 import { canReview, useProfile } from "../auth";
 import { Player } from "../components/Player";
+import { ReferenceVideo } from "../components/ReferenceVideo";
 import { messageFor, REJECTION_REASON_TEXT } from "../messages";
 import { useNotify } from "../notifications";
 import type { ReplayData } from "../replay/draw";
@@ -235,7 +236,7 @@ function Swipe() {
         }}
       >
         <section className="panel" aria-label="Vídeo de referência">
-          {sign && <video key={sign.id} src={sign.video_url} autoPlay loop muted playsInline />}
+          {sign && <ReferenceVideo key={sign.id} src={sign.video_url} />}
         </section>
         <section className="panel" aria-label="Gravação a analisar">
           {replay && replay !== "error" && replay !== "loading" && <Player replay={replay} />}
