@@ -37,9 +37,9 @@ Hono app in `server/app.ts`. `api/index.ts` is the Vercel entry point.
 | `GET /api/admin/users` | Admin | Paginated list, or `?username=` |
 | `PATCH /api/admin/users/{uid}` | Admin | `trust_level`, `role` |
 | `GET /api/admin/signs` | Admin | Catalog with inactive signs |
-| `POST /api/admin/signs` | Admin | `name`, `video_url`, `sign_metadata`, `order` |
+| `POST /api/admin/signs` | Admin | `name`, `video_url`, `sign_metadata` |
 | `PATCH /api/admin/signs/{id}` | Admin | Same fields and `active`. The slug does not change |
-| `PUT /api/admin/sign-metadata-schema` | Admin | New metadata schema |
+| `PUT /api/admin/sign-metadata-schema` | Admin | `{"sign_metadata_schema": {key: {"type": "boolean", "label"}}}`. It replaces the tags. A key has lower case letters, digits and `_`, and starts with a letter. The major version goes up. Each sign gets the new keys with the value `false`, and loses the removed keys |
 | `GET /api/admin/reference-profiles` | Admin | Current profiles |
 | `POST /api/admin/reference-profiles/rebuild` | Admin | Build the profiles again from the reference recordings |
 

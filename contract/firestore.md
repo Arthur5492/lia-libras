@@ -47,7 +47,6 @@ Name rules: 3 to 20 characters, letters, digits and `_`. `username_key` = lowerc
 | `video_url` | string | Reference video (INES) |
 | `metadata` | map | Follows `config/sign_catalog.sign_metadata_schema` (now `is_dynamic`, `is_two_handed`) |
 | `active` | bool | An inactive sign is not in the collection, but its recordings stay |
-| `order` | int | Order in the collection |
 | `recording_count`, `accepted_count`, `reference_count` | int | Counters |
 | `created_at`, `updated_at` | timestamp | |
 
@@ -97,7 +96,7 @@ When the person deletes a recording, the API deletes the `.npz` file and the doc
 Review: `trusted`, `expert` and `admin` can review, but never their own recordings.
 
 ## `config/*`
-- `config/sign_catalog`: `schema_version`, `sign_metadata_schema`. The release script writes `signs.json` to the bucket from this document and from `signs`.
+- `config/sign_catalog`: `schema_version`, `sign_metadata_schema`. If the document does not exist, the API uses the tags `is_dynamic` and `is_two_handed`. The release script writes `signs.json` to the bucket from this document and from `signs`.
 - `config/reference_profiles`: profiles by `sign_id` (UUID), `min_references`, `schema_version`, `build`.
 - `config/username_blocklist`: `terms` (array).
 

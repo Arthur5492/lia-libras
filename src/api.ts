@@ -23,7 +23,6 @@ export interface Sign {
   name: string;
   video_url: string;
   sign_metadata: Record<string, boolean>;
-  order: number;
   active: boolean;
   recording_count: number;
 }
@@ -40,7 +39,6 @@ export interface SignInput {
   name: string;
   video_url: string;
   sign_metadata: Record<string, boolean>;
-  order: number;
   active?: boolean;
 }
 
@@ -157,6 +155,8 @@ export const api = {
       "GET", `/api/me/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
   markNotificationsRead: (ids?: string[]) => request<void>("POST", "/api/me/notifications/read", ids ? { ids } : {}),
   adminSigns: () => request<Catalog>("GET", "/api/admin/signs"),
+  updateMetadataSchema: (schema: MetadataSchema) =>
+    request<Catalog>("PUT", "/api/admin/sign-metadata-schema", { sign_metadata_schema: schema }),
   createSign: (input: SignInput) => request<Sign>("POST", "/api/admin/signs", input),
   updateSign: (id: string, input: Partial<SignInput>) => request<Sign>("PATCH", `/api/admin/signs/${id}`, input),
 };

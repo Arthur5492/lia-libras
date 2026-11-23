@@ -159,7 +159,7 @@ export function resetCounter(): void {
 export async function sign(slug = "amor", active = true): Promise<string> {
   const id = randomUUID();
   await getDb().collection("signs").doc(id).set({
-    slug, name: slug, video_url: "https://example.com/v.mp4", metadata: {}, active, order: 0,
+    slug, name: slug, video_url: "https://example.com/v.mp4", metadata: {}, active,
     recording_count: 0, accepted_count: 0, reference_count: 0,
   });
   return id;

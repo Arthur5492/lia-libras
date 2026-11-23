@@ -161,11 +161,17 @@ export async function updateMe(db: Firestore, uid: string, showInRanking: boolea
 
 // ---------- catalog and statistics ----------
 
+/** The tags of a new database. An admin can change them. The first change saves them in `config/sign_catalog`. */
+const DEFAULT_METADATA_SCHEMA: MetadataSchema = {
+  is_dynamic: { type: "boolean", label: "Dinâmico" },
+  is_two_handed: { type: "boolean", label: "Duas mãos" },
+};
+
 async function catalogConfig(db: Firestore): Promise<{ schema_version: string; sign_metadata_schema: MetadataSchema }> {
   const data = (await db.collection(CONFIG).doc("sign_catalog").get()).data() ?? {};
   return {
     schema_version: data.schema_version ?? "1.0",
-    sign_metadata_schema: data.sign_metadata_schema ?? {},
+    sign_metadata_schema: data.sign_metadata_schema ?? DEFAULT_METADATA_SCHEMA,
   };
 }
 
@@ -177,7 +183,6 @@ export function publicSign(id: string, data: Doc) {
     video_url: data.video_url,
     sign_metadata: data.metadata ?? {},
     active: data.active ?? true,
-    order: data.order ?? 0,
     recording_count: data.recording_count ?? 0,
     accepted_count: data.accepted_count ?? 0,
     reference_count: data.reference_count ?? 0,
@@ -188,7 +193,7 @@ export async function catalog(db: Firestore, includeInactive = false) {
   const snaps = await db.collection(SIGNS).get();
   let signs = snaps.docs.map((s) => publicSign(s.id, s.data()));
   if (!includeInactive) signs = signs.filter((s) => s.active);
-  signs.sort((a, b) => a.order - b.order || String(a.name).localeCompare(String(b.name), "pt-BR"));
+  signs.sort((a, b) => String(a.name).localeCompare(String(b.name), "pt-BR"));
   return { ...(await catalogConfig(db)), signs };
 }
 
@@ -198,7 +203,7 @@ export async function nextSigns(db: Firestore, settings: Settings, user: Doc, co
   const mine = (user.sign_recordings ?? {}) as Record<string, number[]>;
   const open = signs
     .filter((s) => (mine[s.id]?.length ?? 0) < settings.targetPerSign)
-    .sort((a, b) => a.recording_count - b.recording_count || a.order - b.order);
+    .sort((a, b) => a.recording_count - b.recording_count || String(a.name).localeCompare(String(b.name), "pt-BR"));
   return {
     target_per_sign: settings.targetPerSign,
     remaining_signs: open.length,
@@ -760,7 +765,6 @@ export async function createSign(db: Firestore, body: Doc) {
     video_url: videoUrl,
     metadata,
     active: true,
-    order: Math.round(Number(body.order) || 0),
     recording_count: 0,
     accepted_count: 0,
     reference_count: 0,
@@ -788,7 +792,6 @@ export async function updateSign(db: Firestore, signId: string, body: Doc) {
     fields.metadata = named(() => normalizeMetadata(body.sign_metadata, schema));
   }
   if ("active" in body) fields.active = Boolean(body.active);
-  if ("order" in body) fields.order = Math.round(Number(body.order) || 0);
   if (Object.keys(fields).length > 0) await ref.update({ ...fields, updated_at: FieldValue.serverTimestamp() });
   return publicSign(signId, (await ref.get()).data()!);
 }

@@ -448,6 +448,29 @@ describe.skipIf(!EMULATED)("api", () => {
     expect(schema.body.signs[0].sign_metadata).toEqual({ is_two_handed: false });
   });
 
+  test("a new database has the first tags, and an admin can add one", async () => {
+    const admin = await person("regular", "admin");
+    const first = (await admin.get("/api/admin/signs")).body;
+    expect(Object.keys(first.sign_metadata_schema)).toEqual(["is_dynamic", "is_two_handed"]);
+
+    const created = await admin.post("/api/admin/signs", {
+      name: "Casa", video_url: "https://example.com/v.mp4", sign_metadata: { is_two_handed: true },
+    });
+    expect(created.body.sign_metadata).toEqual({ is_dynamic: false, is_two_handed: true });
+
+    // A new tag. The old ones stay with their values, and the new one is false for all the signs.
+    const schema = await admin.put("/api/admin/sign-metadata-schema", {
+      sign_metadata_schema: {
+        ...first.sign_metadata_schema,
+        uses_face: { type: "boolean", label: "Usa o rosto" },
+      },
+    });
+    expect(schema.body.signs[0].sign_metadata).toEqual({ is_dynamic: false, is_two_handed: true, uses_face: false });
+    expect(Object.keys(schema.body.sign_metadata_schema)).toEqual(["is_dynamic", "is_two_handed", "uses_face"]);
+    const bad = await admin.put("/api/admin/sign-metadata-schema", { sign_metadata_schema: { "Not valid": { type: "boolean" } } });
+    expect([bad.status, bad.body.code]).toEqual([422, "invalid_metadata_schema"]);
+  });
+
   test("reference profiles", async () => {
     const signId = await sign();
     const admin = await person("regular", "admin");
