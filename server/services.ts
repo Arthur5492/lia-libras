@@ -164,7 +164,7 @@ export async function updateMe(db: Firestore, uid: string, showInRanking: boolea
 /** The tags of a new database. An admin can change them. The first change saves them in `config/sign_catalog`. */
 const DEFAULT_METADATA_SCHEMA: MetadataSchema = {
   is_dynamic: { type: "boolean", label: "Dinâmico" },
-  is_two_handed: { type: "boolean", label: "Duas mãos" },
+  is_two_handed: { type: "boolean", label: "Usa duas mãos" },
 };
 
 async function catalogConfig(db: Firestore): Promise<{ schema_version: string; sign_metadata_schema: MetadataSchema }> {
