@@ -1,4 +1,4 @@
-import { onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, type User } from "firebase/auth";
+import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signInWithRedirect, signOut, type User } from "firebase/auth";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, type Profile } from "./api";
 import { auth, googleProvider } from "./firebase";
@@ -13,6 +13,8 @@ type Session =
 interface AuthValue {
   session: Session;
   signIn: () => Promise<void>;
+  /** Sign in with the ID token that the button of Google gives. */
+  signInWithToken: (idToken: string) => Promise<void>;
   signOut: () => Promise<void>;
   setProfile: (profile: Profile) => void;
   reload: () => void;
@@ -66,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthValue = {
     session,
     signIn,
+    signInWithToken: async (idToken) => {
+      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+    },
     signOut: () => signOut(auth),
     setProfile: (profile) =>
       setSession((current) => ("user" in current ? { state: "ready", user: current.user, profile } : current)),
