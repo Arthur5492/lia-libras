@@ -4,6 +4,7 @@ import { api, errorMessage, type RejectionReason, type Recording, type Sign } fr
 import { canReview, useProfile } from "../auth";
 import { Player } from "../components/Player";
 import { ReferenceVideo } from "../components/ReferenceVideo";
+import { ZoomViewer } from "../components/ZoomViewer";
 import { messageFor, REJECTION_REASON_TEXT } from "../messages";
 import { useNotify } from "../notifications";
 import type { ReplayData } from "../replay/draw";
@@ -17,6 +18,9 @@ const STATUSES = ["unreviewed", "trusted_unreviewed"];
 const BUFFER = 4;
 /** A drag farther than this (in pixels) is a decision. */
 const SWIPE_PX = 90;
+/** A touch that moves less than this (in pixels), and is short, is a tap. */
+const TAP_PX = 8;
+const TAP_MS = 500;
 
 type Action = "accepted" | "rejected" | "skipped";
 interface Decision {
@@ -36,11 +40,14 @@ function Swipe() {
   const [rejecting, setRejecting] = useState(false);
   const [info, setInfo] = useState(false);
   const [emptyClosed, setEmptyClosed] = useState(false);
+  const [zoom, setZoom] = useState(false);
 
   const card = useRef<HTMLDivElement>(null);
   const yes = useRef<HTMLDivElement>(null);
   const no = useRef<HTMLDivElement>(null);
   const start = useRef<number | null>(null);
+  const startY = useRef(0);
+  const downAt = useRef(0);
   const locked = useRef(false);
   const loader = useRef({ statuses: [...STATUSES], cursors: {} as Record<string, string | null>, busy: false });
   const known = useRef(new Set<string>());
@@ -184,6 +191,8 @@ function Swipe() {
   const onDown = (event: PointerEvent) => {
     if (!current || locked.current) return;
     start.current = event.clientX;
+    startY.current = event.clientY;
+    downAt.current = performance.now();
     event.currentTarget.setPointerCapture(event.pointerId);
     if (card.current) card.current.style.transition = "none";
   };
@@ -193,7 +202,15 @@ function Swipe() {
   const onUp = (event: PointerEvent) => {
     if (start.current === null) return;
     const dx = event.clientX - start.current;
+    const dy = event.clientY - startY.current;
     start.current = null;
+    // A tap on the recording opens it on the whole screen.
+    if (Math.abs(dx) < TAP_PX && Math.abs(dy) < TAP_PX && performance.now() - downAt.current < TAP_MS) {
+      resetCard(true);
+      const touched = document.elementFromPoint(event.clientX, event.clientY);
+      if (touched?.closest("[data-replay]") && typeof replay === "object") setZoom(true);
+      return;
+    }
     if (dx > SWIPE_PX) accept();
     else if (dx < -SWIPE_PX) askReason();
     else resetCard(true);
@@ -238,7 +255,14 @@ function Swipe() {
         <section className="panel" aria-label="Vídeo de referência">
           {sign && <ReferenceVideo key={sign.id} src={sign.video_url} />}
         </section>
-        <section className="panel" aria-label="Gravação a analisar">
+        <section
+          className="panel"
+          data-replay
+          role="button"
+          tabIndex={0}
+          aria-label="Gravação a analisar. Toque para ampliar."
+          onKeyDown={(event) => event.key === "Enter" && typeof replay === "object" && setZoom(true)}
+        >
           {replay && replay !== "error" && replay !== "loading" && <Player replay={replay} />}
           <div className="panel__fade" />
         </section>
@@ -255,6 +279,7 @@ function Swipe() {
         <RoundButton size="sm" bigIcon label="Informações" disabled={busy} onClick={() => setInfo(true)}><IconInfoSmall aria-hidden="true" /></RoundButton>
       </div>
 
+      {zoom && typeof replay === "object" && <ZoomViewer replay={replay} onClose={() => setZoom(false)} />}
       {empty && !emptyClosed && (
         <Sheet title="Nada para analisar" onClose={() => setEmptyClosed(true)}>
           <p>Não há gravações esperando análise agora.</p>

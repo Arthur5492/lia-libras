@@ -99,13 +99,14 @@ export function bones(
 export function drawFrame(ctx: CanvasRenderingContext2D, replay: ReplayData, frame: number): void {
   const { width, height } = ctx.canvas;
   const pen: Pen = (x, y) => [(1 - x) * width, y * height];
+  const line = Math.max(2, width / 320);
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "#121518";
   ctx.fillRect(0, 0, width, height);
   if (replay.pose_mask[frame]) {
     const pose = replay.pose[frame];
-    bones(ctx, pose, POSE_BONES, pen, "#8a8f94", (i) => POSE_BONES.some((p) => p.includes(i)) && pose[i][2] >= VISIBLE);
+    bones(ctx, pose, POSE_BONES, pen, "#8a8f94", (i) => POSE_BONES.some((p) => p.includes(i)) && pose[i][2] >= VISIBLE, line);
   }
-  if (replay.left_mask[frame]) drawHand(ctx, replay.left_hand[frame], pen);
-  if (replay.right_mask[frame]) drawHand(ctx, replay.right_hand[frame], pen);
+  if (replay.left_mask[frame]) drawHand(ctx, replay.left_hand[frame], pen, line);
+  if (replay.right_mask[frame]) drawHand(ctx, replay.right_hand[frame], pen, line);
 }

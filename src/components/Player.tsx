@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { drawFrame, duration, frameAt, type ReplayData } from "../replay/draw";
 
 /** Play a replay in a loop on a canvas, with the real time of each frame. */
-export function Player({ replay }: { replay: ReplayData }) {
+export function Player({ replay, resolution = [320, 240] }: { replay: ReplayData; resolution?: [number, number] }) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -19,5 +19,5 @@ export function Player({ replay }: { replay: ReplayData }) {
     return () => cancelAnimationFrame(id);
   }, [replay]);
 
-  return <canvas ref={canvas} width={320} height={240} />;
+  return <canvas ref={canvas} width={resolution[0]} height={resolution[1]} />;
 }
