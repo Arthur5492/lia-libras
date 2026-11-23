@@ -78,6 +78,8 @@ export function recordFrames(
   video: HTMLVideoElement,
   landmarkers: Landmarkers,
   limits: { durationMs: number; minFrames: number; maxMs: number },
+  /** Called for each detected frame, for example to draw the outline of the person. */
+  onFrame?: (frame: RawFrame) => void,
 ): Promise<RawFrame[]> {
   return new Promise((resolve, reject) => {
     const frames: RawFrame[] = [];
@@ -94,7 +96,9 @@ export function recordFrames(
         if (video.currentTime !== lastVideoTime && now > lastT) {
           lastVideoTime = video.currentTime;
           lastT = now;
-          frames.push(detect(video, landmarkers, now));
+          const frame = detect(video, landmarkers, now);
+          frames.push(frame);
+          onFrame?.(frame);
         }
       } catch (error) {
         return reject(error);
@@ -103,4 +107,39 @@ export function recordFrames(
     };
     requestAnimationFrame(step);
   });
+}
+
+/**
+ * Detect on the new video frames until the returned function is called. It does at most `fps` frames each second,
+ * because a loop that never stops uses the battery. Do not run it at the same time as `recordFrames`.
+ */
+export function watchFrames(
+  video: HTMLVideoElement,
+  landmarkers: Landmarkers,
+  onFrame: (frame: RawFrame) => void,
+  fps = 12,
+): () => void {
+  let running = true;
+  let lastVideoTime = -1;
+  let lastT = -1;
+  const gap = 1000 / fps;
+  const step = () => {
+    if (!running) return;
+    const now = performance.now();
+    if (video.readyState >= 2 && video.currentTime !== lastVideoTime && now - lastT >= gap) {
+      lastVideoTime = video.currentTime;
+      lastT = now;
+      try {
+        onFrame(detect(video, landmarkers, now));
+      } catch {
+        running = false;
+        return;
+      }
+    }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  return () => {
+    running = false;
+  };
 }
