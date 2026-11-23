@@ -122,6 +122,17 @@ app.get("/me/recordings", async (c) => {
   return c.json({ items: await s.myRecordings(getDb(), caller.user) });
 });
 
+app.get("/me/notifications", async (c) => {
+  const caller = await callerOf(c);
+  return c.json(await s.notificationList(getDb(), getSettings(), caller.uid, c.req.query()));
+});
+
+app.post("/me/notifications/read", async (c) => {
+  const caller = await callerOf(c);
+  await s.notificationsRead(getDb(), caller.uid, (await bodyOf(c)).ids);
+  return c.body(null, 204);
+});
+
 app.get("/recordings/:id/replay", async (c) => {
   const caller = await callerOf(c);
   c.header("Cache-Control", "private, max-age=300");

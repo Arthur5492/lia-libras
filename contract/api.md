@@ -27,11 +27,13 @@ Hono app in `server/app.ts`. `api/index.ts` is the Vercel entry point.
 | `GET /api/collect/next?count=5` | Profile | Signs for the next collection session: not complete for the person, fewest recordings first |
 | `POST /api/recordings` | Profile | Upload (format below). 201 for a new recording, 200 for a retry |
 | `GET /api/me/recordings` | Profile | Own recordings |
-| `DELETE /api/me/recordings/{id}` | Profile | Delete an own recording |
+| `DELETE /api/me/recordings/{id}` | Profile | Delete an own recording and its notification |
+| `GET /api/me/notifications` | Profile | `cursor`, `limit`. Newest first. Gives `items`, `unread_count` and `next_cursor` |
+| `POST /api/me/notifications/read` | Profile | `{"ids": [...]}`, maximum 100, or `{}` for all the unread ones. 204 |
 | `GET /api/recordings/{id}/replay` | Profile | Landmarks for the replay (author or reviewer) |
 | `GET /api/review/recordings` | Review | `status` is necessary. Use a maximum of one filter: `sign_id`, `trust_level`, `flag` or `username`. Also `cursor`, `limit`, `include_skipped=1`. Skipped recordings are hidden by default. A page can have fewer items than `limit`: follow `next_cursor` until it is null |
 | `POST /api/review/recordings/{id}/skip` | Review | Hide the recording from this reviewer's list. Not allowed for the own recordings. The API keeps the last 100 |
-| `PATCH /api/review/recordings` | Review | `{"updates": [{"id", "status": "accepted" \| "rejected" \| "pending"}]}`, maximum 50 |
+| `PATCH /api/review/recordings` | Review | `{"updates": [{"id", "status": "accepted" \| "rejected" \| "pending", "reason"}]}`, maximum 50. `reason` is optional and only for `rejected`. Codes: `wrong_sign`, `hands_not_visible`, `body_not_visible`, `incomplete_motion`, `other` (`shared/review.ts`). A decision that changes the status or the reason makes a notification for the author |
 | `GET /api/admin/users` | Admin | Paginated list, or `?username=` |
 | `PATCH /api/admin/users/{uid}` | Admin | `trust_level`, `role` |
 | `GET /api/admin/signs` | Admin | Catalog with inactive signs |
@@ -75,7 +77,7 @@ The body is always `{"code": "...", ...}`. The interface changes the code into a
 | 403 | `not_registered`, `reviewer_only`, `admin_only`, `cannot_review_own` |
 | 404 | `recording_not_found`, `recording_file_missing`, `user_not_found`, `sign_not_found` |
 | 409 | `already_registered`, `username_taken`, `busy_retry` (try again), `sign_complete`, `upload_in_progress`, `client_id_conflict`, `slug_taken`, `cannot_remove_own_admin` |
-| 422 | `invalid_username`, `blocked_username`, `consent_required`, `unknown_sign`, `invalid_client_id`, `low_quality` (with `validation_flags` and `metrics`), `invalid_json`, `invalid_frame_count`, `invalid_<array>`, `invalid_<array>_shape`, `invalid_<array>_values`, `invalid_status`, `too_many_filters`, `invalid_cursor`, `invalid_batch_size`, `invalid_sign`, `invalid_role`, `invalid_trust_level`, `invalid_metadata_schema`, `invalid_sign_metadata` |
+| 422 | `invalid_username`, `blocked_username`, `consent_required`, `unknown_sign`, `invalid_client_id`, `low_quality` (with `validation_flags` and `metrics`), `invalid_json`, `invalid_frame_count`, `invalid_<array>`, `invalid_<array>_shape`, `invalid_<array>_values`, `invalid_status`, `invalid_reason`, `reason_not_allowed`, `invalid_ids`, `too_many_filters`, `invalid_cursor`, `invalid_batch_size`, `invalid_sign`, `invalid_role`, `invalid_trust_level`, `invalid_metadata_schema`, `invalid_sign_metadata` |
 | 500 | `internal_error` |
 | 502 | `storage_error` |
 

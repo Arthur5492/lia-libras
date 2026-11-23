@@ -51,6 +51,18 @@ Name rules: 3 to 20 characters, letters, digits and `_`. `username_key` = lowerc
 | `recording_count`, `accepted_count`, `reference_count` | int | Counters |
 | `created_at`, `updated_at` | timestamp | |
 
+## `users/{uid}/notifications/{recording_id}`
+One notification for each reviewed recording. A new decision on the same recording replaces it and makes it unread again. A return to "not reviewed" or the deletion of the recording deletes it. The browser does not read it: the API does.
+
+| Field | Type | Notes |
+|---|---|---|
+| `type` | `recording_accepted` \| `recording_rejected` | |
+| `recording_id`, `sign_id` | string | |
+| `sign_name` | string \| null | Name of the sign when the notification was made |
+| `reason` | string \| null | Reason code, for `recording_rejected` |
+| `read` | bool | |
+| `created_at` | timestamp | |
+
 ## `recordings/{uuid}_{sign_id}_{NN}`
 The id is fixed: a second upload of the same recording does not make a new document.
 
@@ -71,6 +83,7 @@ The id is fixed: a second upload of the same recording does not make a new docum
 | `user_trust_level` | string | Copy of the trust level of the author |
 | `counts_as_reference` | bool | `status == accepted` and `user_trust_level == expert` |
 | `reviewed_by` | string \| null | uid of the reviewer |
+| `review_reason` | string \| null | Code of the reason of a rejection. `null` for the other statuses |
 | `reviewed_at`, `created_at`, `updated_at` | timestamp | |
 
 Status:

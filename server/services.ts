@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { FieldValue, Timestamp, type DocumentData, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { CaptureError, decodeCapture, SCHEMA_VERSION, type UploadBody } from "../shared/capture.js";
 import { activeHand, assignHands } from "../shared/hands.js";
+import { isRejectionReason } from "../shared/review.js";
 import {
   assessReference, basicFlags, buildProfile, recordingMetrics, type Metrics, type ReferenceProfiles,
 } from "../shared/metrics.js";
@@ -19,6 +20,8 @@ const USERNAMES = "usernames";
 const SIGNS = "signs";
 const RECORDINGS = "recordings";
 const CONFIG = "config";
+/** Subcollection of `users/{uid}`. The document id is the id of the recording. */
+const NOTIFICATIONS = "notifications";
 
 const TRUST_LEVELS = ["regular", "trusted", "expert"];
 const REVIEWER_LEVELS = new Set(["trusted", "expert"]);
@@ -26,6 +29,7 @@ const PENDING = new Set(["unreviewed", "trusted_unreviewed"]);
 const LISTABLE_STATUSES = ["unreviewed", "trusted_unreviewed", "accepted", "rejected"];
 const STALE_UPLOAD_MS = 2 * 60 * 1000;
 const MAX_REVIEW_BATCH = 50;
+const MAX_NOTIFICATION_READ = 100;
 /** A reviewer remembers this number of skipped recordings. The oldest ones drop out first. */
 const MAX_REVIEW_SKIPS = 100;
 const PROFILES_CACHE_MS = 60 * 1000;
@@ -241,6 +245,7 @@ export function publicRecording(id: string, data: Doc) {
     reference_similarity_score: data.reference_similarity_score ?? null,
     user_trust_level: data.user_trust_level,
     counts_as_reference: Boolean(data.counts_as_reference),
+    review_reason: data.review_reason ?? null,
     reviewed_at: iso(data.reviewed_at),
     created_at: iso(data.created_at),
   };
@@ -421,6 +426,7 @@ export async function deleteOwn(db: Firestore, storage: Storage, uid: string, us
     const signRecordings = { ...(owner.get("sign_recordings") ?? {}) } as Record<string, number[]>;
     signRecordings[current.sign_id] = (signRecordings[current.sign_id] ?? []).filter((i) => i !== current.video_idx);
     t.delete(recRef);
+    t.delete(userRef.collection(NOTIFICATIONS).doc(id));
     t.update(userRef, { sign_recordings: signRecordings, recording_count: FieldValue.increment(-1) });
     t.update(db.collection(SIGNS).doc(current.sign_id), {
       recording_count: FieldValue.increment(-1),
@@ -501,22 +507,36 @@ export async function reviewSkip(db: Firestore, uid: string, user: Doc, id: stri
   });
 }
 
+interface ReviewEvent {
+  id: string;
+  uuid: string;
+  sign_id: string;
+  choice: string;
+  reason: string | null;
+}
+
 export async function reviewBatch(db: Firestore, uid: string, user: Doc, updates: unknown) {
   if (!Array.isArray(updates) || updates.length === 0 || updates.length > MAX_REVIEW_BATCH) {
     throw new ApiError(422, "invalid_batch_size");
   }
-  const wanted = new Map<string, string>();
-  for (const item of updates as { id?: string; status?: string }[]) {
+  const wanted = new Map<string, { status: string; reason: string | null }>();
+  for (const item of updates as { id?: string; status?: string; reason?: unknown }[]) {
     if (!item || !["accepted", "rejected", "pending"].includes(String(item.status))) {
       throw new ApiError(422, "invalid_status");
     }
-    wanted.set(String(item.id), String(item.status));
+    const reason = item.reason ?? null;
+    if (reason !== null) {
+      if (item.status !== "rejected") throw new ApiError(422, "reason_not_allowed");
+      if (!isRejectionReason(reason)) throw new ApiError(422, "invalid_reason");
+    }
+    wanted.set(String(item.id), { status: String(item.status), reason });
   }
   const refs = [...wanted.keys()].map((id) => db.collection(RECORDINGS).doc(id || "-"));
 
-  await transaction(db, async (t) => {
+  const events = await transaction(db, async (t) => {
     const snaps = await t.getAll(...refs);
     const deltas = new Map<string, { accepted: number; reference: number }>();
+    const changes: ReviewEvent[] = [];
     for (const snap of snaps) {
       if (!snap.exists || snap.get("status") === "uploading") {
         throw new ApiError(404, "recording_not_found", { id: snap.id });
@@ -524,16 +544,22 @@ export async function reviewBatch(db: Firestore, uid: string, user: Doc, updates
       const current = snap.data()!;
       if (current.uuid === user.uuid) throw new ApiError(403, "cannot_review_own", { id: snap.id });
       const trust: string = current.user_trust_level ?? "regular";
-      const choice = wanted.get(snap.id)!;
+      const { status: choice, reason } = wanted.get(snap.id)!;
       const status = choice === "pending" ? defaultStatus(trust) : choice;
+      const reviewReason = choice === "rejected" ? reason : null;
       const reference = countsAsReference(status, trust);
       const delta = deltas.get(current.sign_id) ?? { accepted: 0, reference: 0 };
       delta.accepted += Number(status === "accepted") - Number(current.status === "accepted");
       delta.reference += Number(reference) - Number(Boolean(current.counts_as_reference));
       deltas.set(current.sign_id, delta);
+      // A repeated decision does not make a new notification.
+      if (status !== current.status || reviewReason !== (current.review_reason ?? null)) {
+        changes.push({ id: snap.id, uuid: current.uuid, sign_id: current.sign_id, choice, reason: reviewReason });
+      }
       t.update(snap.ref, {
         status,
         counts_as_reference: reference,
+        review_reason: reviewReason,
         reviewed_by: choice === "pending" ? null : uid,
         reviewed_at: choice === "pending" ? null : FieldValue.serverTimestamp(),
         updated_at: FieldValue.serverTimestamp(),
@@ -546,9 +572,94 @@ export async function reviewBatch(db: Firestore, uid: string, user: Doc, updates
         reference_count: FieldValue.increment(delta.reference),
       });
     }
+    return changes;
   });
+  // The review is already saved. A failure here must not undo it, so the notifications are a separate step.
+  await notifyAuthors(db, events).catch((error) => console.error("Could not write notifications", error));
   const after = await db.getAll(...refs);
   return after.map((s) => publicRecording(s.id, s.data()!));
+}
+
+/** Tell the authors about a decision. A return to "not reviewed" removes the notification. */
+async function notifyAuthors(db: Firestore, events: ReviewEvent[]): Promise<void> {
+  if (events.length === 0) return;
+  const uuids = [...new Set(events.map((e) => e.uuid))];
+  const uidByUuid = new Map<string, string>();
+  for (let i = 0; i < uuids.length; i += 30) {
+    const snaps = (await db.collection(USERS).where("uuid", "in", uuids.slice(i, i + 30)).get()).docs;
+    for (const snap of snaps) uidByUuid.set(snap.get("uuid"), snap.id);
+  }
+  const signIds = [...new Set(events.map((e) => e.sign_id))];
+  const signs = await db.getAll(...signIds.map((id) => db.collection(SIGNS).doc(id)));
+  const names = new Map(signs.map((snap) => [snap.id, snap.get("name") as string | undefined]));
+
+  const batch = db.batch();
+  for (const event of events) {
+    const uid = uidByUuid.get(event.uuid);
+    if (!uid) continue;
+    const ref = db.collection(USERS).doc(uid).collection(NOTIFICATIONS).doc(event.id);
+    if (event.choice === "pending") {
+      batch.delete(ref);
+    } else {
+      batch.set(ref, {
+        type: event.choice === "accepted" ? "recording_accepted" : "recording_rejected",
+        recording_id: event.id,
+        sign_id: event.sign_id,
+        sign_name: names.get(event.sign_id) ?? null,
+        reason: event.reason,
+        read: false,
+        created_at: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+  await batch.commit();
+}
+
+export async function notificationList(
+  db: Firestore, settings: Settings, uid: string, params: { cursor?: string; limit?: string },
+) {
+  const col = db.collection(USERS).doc(uid).collection(NOTIFICATIONS);
+  let query = col.orderBy("created_at", "desc");
+  if (params.cursor) {
+    const start = await col.doc(params.cursor).get();
+    if (!start.exists) throw new ApiError(422, "invalid_cursor");
+    query = query.startAfter(start);
+  }
+  const limit = Math.max(1, Math.min(Number(params.limit) || settings.pageSize, settings.pageSize));
+  const [page, unread] = await Promise.all([query.limit(limit).get(), col.where("read", "==", false).count().get()]);
+  return {
+    items: page.docs.map((snap) => ({
+      id: snap.id,
+      type: snap.get("type"),
+      recording_id: snap.get("recording_id"),
+      sign_id: snap.get("sign_id"),
+      sign_name: snap.get("sign_name") ?? null,
+      reason: snap.get("reason") ?? null,
+      read: Boolean(snap.get("read")),
+      created_at: iso(snap.get("created_at")),
+    })),
+    unread_count: unread.data().count,
+    next_cursor: page.docs.length === limit ? page.docs[page.docs.length - 1].id : null,
+  };
+}
+
+/** Mark some notifications as read. Without `ids`, mark all of them. */
+export async function notificationsRead(db: Firestore, uid: string, ids: unknown): Promise<void> {
+  const col = db.collection(USERS).doc(uid).collection(NOTIFICATIONS);
+  let refs;
+  if (ids === undefined) {
+    refs = (await col.where("read", "==", false).limit(MAX_NOTIFICATION_READ).get()).docs.map((snap) => snap.ref);
+  } else {
+    const valid = Array.isArray(ids) && ids.length > 0 && ids.length <= MAX_NOTIFICATION_READ &&
+      ids.every((x) => typeof x === "string" && x);
+    if (!valid) throw new ApiError(422, "invalid_ids");
+    const snaps = await db.getAll(...(ids as string[]).map((id) => col.doc(id)));
+    refs = snaps.filter((snap) => snap.exists && !snap.get("read")).map((snap) => snap.ref);
+  }
+  if (refs.length === 0) return;
+  const batch = db.batch();
+  for (const ref of refs) batch.update(ref, { read: true });
+  await batch.commit();
 }
 
 // ---------- administration ----------

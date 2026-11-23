@@ -271,6 +271,75 @@ describe.skipIf(!EMULATED)("api", () => {
     expect([regular.status, regular.body.code]).toEqual([403, "reviewer_only"]);
   });
 
+  test("a decision makes a notification for the author", async () => {
+    const signId = await sign("casa");
+    const author = await person();
+    const reviewer = await person("trusted");
+    const other = await person();
+    const rec = (await author.post("/api/recordings", makeBody(signId))).body.recording.id;
+    const review = (update: object) => reviewer.patch("/api/review/recordings", { updates: [{ id: rec, ...update }] });
+    const list = async (who: typeof author) => (await who.get("/api/me/notifications")).body;
+
+    expect((await list(author)).items).toEqual([]);
+    await review({ status: "accepted" });
+    let body = await list(author);
+    expect(body.unread_count).toBe(1);
+    expect(body.items[0]).toMatchObject({
+      id: rec, type: "recording_accepted", sign_name: "casa", reason: null, read: false,
+    });
+
+    expect((await author.post("/api/me/notifications/read", {})).status).toBe(204);
+    expect((await list(author)).unread_count).toBe(0);
+    // The same decision again does not make the notification unread.
+    await review({ status: "accepted" });
+    expect((await list(author)).unread_count).toBe(0);
+
+    // A new decision replaces the notification and keeps the reason.
+    const rejected = await review({ status: "rejected", reason: "hands_not_visible" });
+    expect(rejected.body.items[0].review_reason).toBe("hands_not_visible");
+    body = await list(author);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({ type: "recording_rejected", reason: "hands_not_visible", read: false });
+    expect(body.unread_count).toBe(1);
+    expect((await list(other)).items).toEqual([]);
+
+    expect((await author.post("/api/me/notifications/read", { ids: [rec, "unknown"] })).status).toBe(204);
+    expect((await list(author)).unread_count).toBe(0);
+
+    const badReason = await review({ status: "rejected", reason: "nope" });
+    expect([badReason.status, badReason.body.code]).toEqual([422, "invalid_reason"]);
+    const wrongStatus = await review({ status: "accepted", reason: "other" });
+    expect([wrongStatus.status, wrongStatus.body.code]).toEqual([422, "reason_not_allowed"]);
+    const noIds = await author.post("/api/me/notifications/read", { ids: [] });
+    expect([noIds.status, noIds.body.code]).toEqual([422, "invalid_ids"]);
+
+    // Back to "not reviewed": the notification and the reason go away.
+    await review({ status: "pending" });
+    expect((await list(author)).items).toEqual([]);
+    expect(await doc("recordings", rec)).toMatchObject({ status: "unreviewed", review_reason: null });
+  });
+
+  test("notifications have pages and go away with the recording", async () => {
+    const signId = await sign("casa");
+    const author = await person();
+    const reviewer = await person("trusted");
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i += 1) ids.push((await author.post("/api/recordings", makeBody(signId))).body.recording.id);
+    await reviewer.patch("/api/review/recordings", { updates: ids.map((id) => ({ id, status: "accepted" })) });
+
+    const first = (await author.get("/api/me/notifications?limit=2")).body;
+    expect(first.items).toHaveLength(2);
+    expect(first.unread_count).toBe(3);
+    const second = (await author.get(`/api/me/notifications?limit=2&cursor=${first.next_cursor}`)).body;
+    expect(second.items).toHaveLength(1);
+    expect((await author.get("/api/me/notifications?cursor=none")).body.code).toBe("invalid_cursor");
+
+    expect((await author.delete(`/api/me/recordings/${ids[0]}`)).status).toBe(204);
+    const after = (await author.get("/api/me/notifications")).body;
+    expect(after.items.map((i: any) => i.id).sort()).toEqual([ids[1], ids[2]].sort());
+    expect(after.unread_count).toBe(2);
+  });
+
   test("reference and counters", async () => {
     const signId = await sign();
     const expert = await person("expert");

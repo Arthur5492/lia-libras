@@ -55,6 +55,21 @@ export interface Recording {
   user_trust_level?: string;
   /** Only in the review list: the recording belongs to the person who looks at it. */
   is_own?: boolean;
+  /** Code of the reason of a rejection. */
+  review_reason?: string | null;
+}
+
+export type RejectionReason = "wrong_sign" | "hands_not_visible" | "body_not_visible" | "incomplete_motion" | "other";
+
+export interface Notification {
+  id: string;
+  type: "recording_accepted" | "recording_rejected";
+  recording_id: string;
+  sign_id: string;
+  sign_name: string | null;
+  reason: RejectionReason | null;
+  read: boolean;
+  created_at: string | null;
 }
 
 export interface ReviewQuery {
@@ -134,8 +149,12 @@ export const api = {
     if (query.cursor) params.set("cursor", query.cursor);
     return request<{ items: Recording[]; next_cursor: string | null }>("GET", `/api/review/recordings?${params}`);
   },
-  review: (id: string, status: ReviewChoice) =>
-    request<{ items: Recording[] }>("PATCH", "/api/review/recordings", { updates: [{ id, status }] }),
+  review: (id: string, status: ReviewChoice, reason?: RejectionReason) =>
+    request<{ items: Recording[] }>("PATCH", "/api/review/recordings", { updates: [{ id, status, reason }] }),
+  notifications: (cursor?: string) =>
+    request<{ items: Notification[]; unread_count: number; next_cursor: string | null }>(
+      "GET", `/api/me/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+  markNotificationsRead: (ids?: string[]) => request<void>("POST", "/api/me/notifications/read", ids ? { ids } : {}),
   adminSigns: () => request<Catalog>("GET", "/api/admin/signs"),
   createSign: (input: SignInput) => request<Sign>("POST", "/api/admin/signs", input),
   updateSign: (id: string, input: Partial<SignInput>) => request<Sign>("PATCH", `/api/admin/signs/${id}`, input),
