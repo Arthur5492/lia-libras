@@ -71,8 +71,8 @@ export function App() {
     <Routes>
       <Route element={<Shell />}>
         <Route index element={<Start />} />
-        <Route path="reconhecer" element={<Recognize />} />
         <Route element={<NeedsProfile />}>
+          <Route path="reconhecer" element={<Recognize />} />
           <Route path="coletar" element={<Collect />} />
           <Route path="analisar" element={<Review />} />
           <Route path="perfil" element={<Profile />} />

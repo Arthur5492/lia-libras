@@ -11,14 +11,16 @@ interface Props {
   bigIcon?: boolean;
   /** Color of the icon. */
   tone?: "red";
+  /** A button that is on or off. When it is on, it is green. */
+  active?: boolean;
   children: ReactNode;
 }
 
 /** A round button with an outline icon. The icon is the child. */
-export function RoundButton({ size, label, onClick, disabled, bigIcon, tone, children }: Props) {
-  const classes = ["rbtn", `rbtn--${size}`, bigIcon ? "rbtn--big-icon" : "", tone ? `rbtn--${tone}` : ""];
+export function RoundButton({ size, label, onClick, disabled, bigIcon, tone, active, children }: Props) {
+  const classes = ["rbtn", `rbtn--${size}`, bigIcon ? "rbtn--big-icon" : "", tone ? `rbtn--${tone}` : "", active ? "rbtn--on" : ""];
   return (
-    <button type="button" className={classes.filter(Boolean).join(" ")} aria-label={label} onClick={onClick} disabled={disabled}>
+    <button type="button" className={classes.filter(Boolean).join(" ")} aria-label={label} aria-pressed={active} onClick={onClick} disabled={disabled}>
       {children}
     </button>
   );

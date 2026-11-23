@@ -39,6 +39,7 @@ const MESSAGES: Record<string, string> = {
   invalid_status: "Status não válido.",
   storage_error: "Não foi possível guardar a gravação.",
   reference_video_error: "Não foi possível carregar o vídeo de exemplo.",
+  model_error: "Não foi possível carregar o modelo.",
   camera_error: "Não foi possível ligar a câmera.",
 
   // Administration
