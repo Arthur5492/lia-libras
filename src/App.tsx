@@ -87,6 +87,8 @@ export function App() {
           <Route path="gravacoes" element={<MyRecordings />} />
           <Route element={<NeedsAdmin />}>
             <Route path="admin/sinais" element={<AdminSigns />} />
+            {/* Route only. The screen waits for the layout decision. The API is in /api/admin/users. */}
+            <Route path="admin/usuarios" element={<p>Em construção.</p>} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
