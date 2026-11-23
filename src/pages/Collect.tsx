@@ -10,7 +10,7 @@ import { missingInFrame, type Missing } from "../../shared/framing";
 import { FramingTracker, type Framing } from "../capture/framingTracker";
 import { drawLive } from "../capture/overlay";
 import { packFrames } from "../capture/pack";
-import { loadLandmarkers, recordFrames, startCamera, stopCamera, watchFrames, type Landmarkers } from "../capture/recorder";
+import { loadLandmarkers, recordFrames, startCameraWithRetry, stopCamera, watchFrames, type Landmarkers } from "../capture/recorder";
 import { GestureEngine } from "../gestures/engine";
 import { BOTH_HANDS_OPEN, SWIPE } from "../gestures/rules";
 import { messageFor } from "../messages";
@@ -150,7 +150,7 @@ export function Collect() {
     (async () => {
       try {
         const marks = await loadLandmarkers();
-        const media = await startCamera(video.current!);
+        const media = await startCameraWithRetry(video.current!, () => active);
         if (!active) {
           stopCamera(media);
           return;
@@ -187,6 +187,11 @@ export function Collect() {
     if (phase === "starting") return notify("Ligando a câmera…", { stay: true });
     if (phase === "error") notify(messageFor("camera_error"));
   }, [phase, notify]);
+
+  // A tip about the gesture that goes to the next sign. It shows once, when the person opens the screen.
+  useEffect(() => {
+    notify(messageFor("tip_collect_swipe"));
+  }, [notify]);
 
   // While the screen waits, and during the countdown, draw the outline of the person. Only a waiting screen looks for the gesture.
   useEffect(() => {

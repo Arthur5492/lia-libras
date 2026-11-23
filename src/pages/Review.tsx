@@ -66,6 +66,11 @@ function Swipe() {
   useEffect(() => {
     if (loading) return notify("Carregando…", { stay: true });
   }, [loading, notify]);
+  // A tip about a feature that is easy to miss. It shows once, when the person opens the screen.
+  useEffect(() => {
+    notify(messageFor("tip_review_swipe"));
+    notify(messageFor("tip_review_zoom"));
+  }, [notify]);
   useEffect(() => {
     if (replays[queue[0]?.id ?? ""] === "error") notify(messageFor("recording_file_missing"));
     // Only the replay of the card on top matters here.
