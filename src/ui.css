@@ -112,6 +112,7 @@ html, body { background: var(--bg); }
 .record { display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
 .record svg { display: block; width: 100%; height: 100%; }
 .record:disabled { cursor: default; }
+.record--dim { opacity: 0.45; }
 
 /* Review screen. */
 .review .row { bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom) + 10px); gap: calc(var(--b) * 0.233); }

@@ -4,6 +4,8 @@ interface Props {
   /** The center is a square while the recording runs. */
   recording: boolean;
   disabled?: boolean;
+  /** The button looks weak, because something stops the recording (the person is not in the picture). */
+  dim?: boolean;
   onClick(): void;
 }
 
@@ -11,10 +13,10 @@ interface Props {
  * The record button. It sits on the top edge of the tab bar, with 70% of the circle inside the bar.
  * All the parts are in one drawing, so they always have the same center.
  */
-export function RecordButton({ progress, recording, disabled, onClick }: Props) {
+export function RecordButton({ progress, recording, disabled, dim, onClick }: Props) {
   return (
     <div className="dock">
-      <button type="button" className="record" aria-label="Gravar" onClick={onClick} disabled={disabled}>
+      <button type="button" className={dim ? "record record--dim" : "record"} aria-label="Gravar" onClick={onClick} disabled={disabled}>
         <svg viewBox="0 0 100 100" aria-hidden="true">
           <circle cx="50" cy="50" r="50" style={{ fill: "var(--bg)" }} />
           <circle cx="50" cy="50" r="46.4" fill="none" strokeWidth="7.2" style={{ stroke: "var(--text)" }} />

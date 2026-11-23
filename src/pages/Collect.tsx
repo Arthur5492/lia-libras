@@ -5,6 +5,7 @@ import { assignHands } from "../../shared/hands";
 import { basicFlags, recordingMetrics } from "../../shared/metrics";
 import { api, ApiError, errorMessage, type NextSigns } from "../api";
 import { useAuth, useProfile } from "../auth";
+import { framingFlags, missingInFrame, type Missing } from "../capture/framing";
 import { drawLive } from "../capture/overlay";
 import { packFrames } from "../capture/pack";
 import { loadLandmarkers, recordFrames, startCamera, stopCamera, watchFrames, type Landmarkers } from "../capture/recorder";
@@ -23,8 +24,19 @@ const RECORD_MS = 2000;
 const RECORD_MAX_MS = 3800;
 const OK_MS = 1000;
 const BAD_MS = 1800;
+// The detector loses a point easily. The state of the framing changes only after some frames in a row,
+// so one bad frame does not stop the person. At 12 frames each second, 6 frames are half a second.
+const GOOD_FRAMES = 3;
+const BAD_FRAMES = 6;
+// The hint about the framing comes after this time, so a short loss does not show a message.
+const HINT_DELAY_MS = 1500;
 
 type Phase = "starting" | "ready" | "countdown" | "recording" | "result" | "error";
+
+interface Framing {
+  state: "unknown" | "ok" | "bad";
+  missing: Missing | null;
+}
 
 interface Result {
   ok: boolean;
@@ -65,6 +77,7 @@ export function Collect() {
   const [help, setHelp] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
+  const [framing, setFraming] = useState<Framing>({ state: "unknown", missing: null });
   // The pop-up that the person closed. It opens again when the person taps the record button.
   const [closed, setClosed] = useState<string | null>(null);
 
@@ -75,6 +88,8 @@ export function Collect() {
   const stopWatch = useRef<(() => void) | null>(null);
   const saved = useRef<Saved[]>([]);
   const run = useRef(0);
+  const framingRef = useRef<Framing>(framing);
+  const streak = useRef({ good: 0, bad: 0 });
   // Values that the callbacks of the gesture engine and of the timers must read when they run, not when they were made.
   const live = useRef({ phase, sign: undefined as NextSigns["signs"][number] | undefined, index, done });
   const engine = useRef<GestureEngine | null>(null);
@@ -112,6 +127,9 @@ export function Collect() {
     let active = true;
     setPhase("starting");
     stopCamera(stream.current);
+    framingRef.current = { state: "unknown", missing: null };
+    streak.current = { good: 0, bad: 0 };
+    setFraming(framingRef.current);
     (async () => {
       try {
         const marks = await loadLandmarkers();
@@ -134,6 +152,19 @@ export function Collect() {
     };
   }, [cameraKey]);
 
+  // When the person is not in the picture for a while, say what is missing.
+  useEffect(() => {
+    if (phase !== "ready" || framing.state !== "bad") return;
+    let dismiss: (() => void) | undefined;
+    const timer = window.setTimeout(() => {
+      dismiss = notify(messageFor(`framing_${framing.missing ?? "shoulders"}`), { stay: true });
+    }, HINT_DELAY_MS);
+    return () => {
+      window.clearTimeout(timer);
+      dismiss?.();
+    };
+  }, [phase, framing, notify]);
+
   // The state of the camera goes to the top of the screen, not over the preview.
   useEffect(() => {
     if (phase === "starting") return notify("Ligando a câmera…", { stay: true });
@@ -149,8 +180,13 @@ export function Collect() {
     if (!marks || !camera || !canvas) return;
     if (phase === "ready") engine.current!.reset();
     const stop = watchFrames(camera, marks, (frame) => {
-      drawLive(canvas, camera, frame);
-      if (live.current.phase === "ready") engine.current!.push({ t: frame.t, hands: frame.hands.map((hand) => hand.image) });
+      updateFraming(missingInFrame(frame.pose?.image));
+      const state = framingRef.current.state;
+      drawLive(canvas, camera, frame, state === "unknown" ? "neutral" : state);
+      // Only a person in the picture can start the recording with a gesture.
+      if (live.current.phase === "ready" && state === "ok") {
+        engine.current!.push({ t: frame.t, hands: frame.hands.map((hand) => hand.image) });
+      }
     });
     stopWatch.current = stop;
     return () => {
@@ -160,11 +196,35 @@ export function Collect() {
     };
   }, [phase]);
 
+  /** Count the frames in a row, and change the state of the framing only after some of them. */
+  function updateFraming(missing: Missing | null) {
+    const count = streak.current;
+    if (missing === null) {
+      count.good += 1;
+      count.bad = 0;
+    } else {
+      count.bad += 1;
+      count.good = 0;
+    }
+    const now = framingRef.current;
+    let next: Framing | null = null;
+    if (now.state !== "ok" && count.good >= GOOD_FRAMES) next = { state: "ok", missing: null };
+    else if (count.bad >= BAD_FRAMES && (now.state !== "bad" || now.missing !== missing)) next = { state: "bad", missing };
+    if (!next) return;
+    framingRef.current = next;
+    setFraming(next);
+    if (next.state !== "ok") engine.current!.reset();
+  }
+
   async function startRecording() {
     const { phase: now, sign: current, index: at, done: counts } = live.current;
     const marks = landmarkers.current;
     const camera = video.current;
     if (now !== "ready" || !current || !marks || !camera) return;
+    if (framingRef.current.state === "bad") {
+      notify(messageFor(`framing_${framingRef.current.missing ?? "shoulders"}`));
+      return;
+    }
     const id = ++run.current;
     const active = () => id === run.current;
 
@@ -199,6 +259,8 @@ export function Collect() {
       // Same rules as the server. The server still decides, but the person sees the reason at once.
       const flags = basicFlags(recordingMetrics(assignHands(capture)));
       if (flags.length > 0) return await finish({ ok: false, text: flags.map(messageFor).join(" ") });
+      const framingProblems = framingFlags(capture);
+      if (framingProblems.length > 0) return await finish({ ok: false, text: framingProblems.map(messageFor).join(" ") });
 
       const entry: Saved = {
         signIndex: at,
@@ -321,6 +383,7 @@ export function Collect() {
       <RecordButton
         progress={progress}
         recording={phase === "recording"}
+        dim={framing.state === "bad"}
         disabled={!blocker && (!sign || (phase !== "ready" && phase !== "countdown"))}
         onClick={onRecordButton}
       />
