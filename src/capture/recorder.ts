@@ -110,14 +110,15 @@ export function recordFrames(
 }
 
 /**
- * Detect on the new video frames until the returned function is called. It does at most `fps` frames each second,
- * because a loop that never stops uses the battery. Do not run it at the same time as `recordFrames`.
+ * Detect on the new video frames until the returned function is called. It does at most `fps` frames each second.
+ * The default follows the video, so the outline of the person moves with the person. Do not run it at the same time
+ * as `recordFrames`.
  */
 export function watchFrames(
   video: HTMLVideoElement,
   landmarkers: Landmarkers,
   onFrame: (frame: RawFrame) => void,
-  fps = 12,
+  fps = 30,
 ): () => void {
   let running = true;
   let lastVideoTime = -1;
