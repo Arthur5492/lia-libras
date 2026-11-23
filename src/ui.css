@@ -42,7 +42,7 @@ html, body { background: var(--bg); }
   width: 36px; height: 36px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
   display: grid; place-items: center; background: rgb(14 16 18 / 0.6); color: var(--text);
 }
-.bell svg { width: 20px; height: 20px; }
+.bell svg { width: 24px; height: 24px; }
 .bell__badge {
   position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
   display: grid; place-items: center; background: var(--red); color: #fff; font-size: 0.6875rem; font-weight: 600;
@@ -77,10 +77,10 @@ html, body { background: var(--bg); }
   width: var(--b); height: var(--b); border-radius: 50%; border: 0; padding: 0; cursor: pointer;
   display: grid; place-items: center; background: var(--btn); color: var(--text);
 }
-.rbtn svg { width: 50%; height: 50%; }
+.rbtn svg { width: 62%; height: 62%; }
 .rbtn--sm { width: calc(var(--b) * 0.75); height: calc(var(--b) * 0.75); color: var(--icon); }
-.rbtn--sm svg { width: 53%; height: 53%; }
-.rbtn--sm.rbtn--big-icon svg { width: 96%; height: 96%; }
+.rbtn--sm svg { width: 64%; height: 64%; }
+.rbtn--sm.rbtn--big-icon svg { width: 104%; height: 104%; }
 .rbtn--red { color: var(--red); }
 .rbtn:hover:not(:disabled) { background: var(--btn-hover); }
 .rbtn:disabled { opacity: 0.35; cursor: default; }
