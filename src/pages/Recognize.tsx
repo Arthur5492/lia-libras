@@ -1,5 +1,6 @@
-import { IconChevronDown, IconVolume, IconVolumeOff } from "@tabler/icons-react";
+import { IconChevronDown, IconSettings, IconVolume, IconVolumeOff } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useProfile } from "../auth";
 import { missingInFrame } from "../../shared/framing";
 import { FramingTracker, type Framing } from "../capture/framingTracker";
 import { drawLive } from "../capture/overlay";
@@ -10,6 +11,7 @@ import { useNotify } from "../notifications";
 import { featuresFor } from "../recognize/features";
 import { loadModelPackage, type ModelPackage } from "../recognize/model";
 import { Recognizer } from "../recognize/recognizer";
+import { clampTuning, clearTuning, defaultTuning, loadTuning, saveTuning, TUNING_LIMITS, type Tuning } from "../recognize/tuning";
 import { RoundButton } from "../ui/RoundButton";
 import { Sheet } from "../ui/Sheet";
 
@@ -34,6 +36,14 @@ function say(text: string): void {
   window.speechSynthesis.speak(speech);
 }
 
+/** The controls of the settings. `show` makes the text of the value. */
+const SETTINGS: { key: keyof Tuning; label: string; help: string; show: (value: number) => string }[] = [
+  { key: "infer_every", label: "Rodar o modelo a cada", help: "Menos quadros dá resposta mais rápida e gasta mais bateria.", show: (v) => (v === 1 ? "1 quadro" : `${v} quadros`) },
+  { key: "stability", label: "Previsões iguais seguidas", help: "Menos dá resposta mais rápida e erra mais.", show: (v) => String(v) },
+  { key: "threshold", label: "Confiança mínima", help: "Menos aceita mais cedo e erra mais.", show: (v) => `${Math.round(v * 100)}%` },
+  { key: "hand_lost_grace", label: "Quadros sem mão antes de recomeçar", help: "Mais deixa abaixar a mão no fim do sinal.", show: (v) => String(v) },
+];
+
 export function Recognize() {
   const notify = useNotify();
   const video = useRef<HTMLVideoElement>(null);
@@ -51,11 +61,19 @@ export function Recognize() {
   const [speak, setSpeak] = useState(false);
   const [open, setOpen] = useState(false);
   const [closed, setClosed] = useState<string | null>(null);
+  // The settings of an admin: the numbers of the recognizer, and two numbers that show their effect.
+  const admin = useProfile().role === "admin";
+  const [tuning, setTuning] = useState<Tuning | null>(null);
+  const [settings, setSettings] = useState(false);
+  const [fps, setFps] = useState(0);
+  const [latency, setLatency] = useState<number | null>(null);
 
   const speakRef = useRef(false);
   const nextId = useRef(1);
   const tracker = useRef(new FramingTracker());
   const shown = useRef({ progress: 0, hands: false });
+  const frameTimes = useRef<number[]>([]);
+  const handsSince = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -80,6 +98,19 @@ export function Recognize() {
       handLostGrace: meta.hand_lost_grace,
     });
   }, [model]);
+
+  // The numbers of the recognizer: the ones of the model, and the ones saved on this device.
+  useEffect(() => {
+    if (model) setTuning(loadTuning(model.meta));
+  }, [model]);
+  useEffect(() => {
+    if (recognizer && tuning) recognizer.setOptions({
+      inferEvery: tuning.infer_every,
+      stability: tuning.stability,
+      threshold: tuning.threshold,
+      handLostGrace: tuning.hand_lost_grace,
+    });
+  }, [recognizer, tuning]);
 
   // The state of the camera and of the model goes to the top of the screen, not over the preview.
   useEffect(() => {
@@ -134,7 +165,12 @@ export function Recognize() {
     tracker.current.reset();
     setFraming(tracker.current.state);
     recognizer.reset();
+    frameTimes.current = [];
+    handsSince.current = null;
     const stop = watchFrames(element, marks, (frame) => {
+      const times = frameTimes.current;
+      times.push(frame.t);
+      if (times.length > 30) times.shift();
       const change = tracker.current.update(missingInFrame(frame.pose?.image), frame.t);
       if (change) setFraming(change);
       const state = tracker.current.state.state;
@@ -147,7 +183,14 @@ export function Recognize() {
       }
       const step = recognizer.push(frame);
       show(step.progress, step.state === "detecting");
-      if (step.word !== null) announce(model.classes[step.word].name);
+      // The time from the hands in the picture, or from the last sign, to the next sign.
+      if (step.state === "idle") handsSince.current = null;
+      else handsSince.current ??= frame.t;
+      if (step.word !== null) {
+        if (handsSince.current !== null) setLatency(Math.round(frame.t - handsSince.current));
+        handsSince.current = frame.t;
+        announce(model.classes[step.word].name);
+      }
     });
     return () => {
       stop();
@@ -167,6 +210,29 @@ export function Recognize() {
     const timer = window.setTimeout(() => setPhrase((list) => list.filter((item) => Date.now() - item.at < PHRASE_MS)), wait + 20);
     return () => window.clearTimeout(timer);
   }, [phrase]);
+
+  // While the settings are open, show the frames each second.
+  useEffect(() => {
+    if (!settings) return;
+    const timer = window.setInterval(() => {
+      const times = frameTimes.current;
+      setFps(times.length > 1 ? Math.round(((times.length - 1) * 1000) / (times[times.length - 1] - times[0])) : 0);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [settings]);
+
+  function change(key: keyof Tuning, value: number) {
+    if (!model || !tuning) return;
+    const next = { ...tuning, [key]: clampTuning(key, value) };
+    setTuning(next);
+    saveTuning(model.meta, next);
+  }
+
+  function restore() {
+    if (!model) return;
+    clearTuning(model.meta);
+    setTuning(defaultTuning(model.meta));
+  }
 
   function toggleSpeak() {
     const next = !speak;
@@ -193,6 +259,12 @@ export function Recognize() {
         <canvas ref={overlay} />
         <div className="panel__fade" />
       </section>
+
+      {admin && (
+        <button type="button" className="gear" aria-label="Ajustes do reconhecimento" onClick={() => setSettings(true)}>
+          <IconSettings aria-hidden="true" />
+        </button>
+      )}
 
       <div className="known">
         <button type="button" className="known__button" aria-expanded={open} onClick={() => setOpen((now) => !now)}>
@@ -230,6 +302,36 @@ export function Recognize() {
           {speak ? <IconVolume aria-hidden="true" /> : <IconVolumeOff aria-hidden="true" />}
         </RoundButton>
       </div>
+
+      {settings && model && tuning && (
+        <Sheet title="Ajustes do reconhecimento" onClose={() => setSettings(false)}>
+          <p className="muted">Valem na hora e ficam guardados só neste aparelho.</p>
+          <div className="tuning">
+            {SETTINGS.map(({ key, label, help, show: format }) => (
+              <div key={key} className="tuning__row">
+                <label htmlFor={`tuning-${key}`}>{label}: <strong>{format(tuning[key])}</strong></label>
+                <input
+                  id={`tuning-${key}`}
+                  type="range"
+                  min={TUNING_LIMITS[key].min}
+                  max={TUNING_LIMITS[key].max}
+                  step={TUNING_LIMITS[key].step}
+                  value={tuning[key]}
+                  onChange={(event) => change(key, Number(event.target.value))}
+                />
+                <p className="field__help">{help}</p>
+              </div>
+            ))}
+          </div>
+          <p className="tuning__live">
+            Quadros por segundo: <strong>{fps || "…"}</strong>. Última confirmação:{" "}
+            <strong>{latency === null ? "ainda nenhuma" : `${(latency / 1000).toFixed(1)} s`}</strong>.
+          </p>
+          <p className="field__help">A janela do modelo é de {model.meta.frames} quadros e não muda sem treinar de novo.</p>
+          <button type="button" className="button button--quiet" onClick={restore}>Voltar ao padrão do modelo</button>
+          <button type="button" className="button button--primary" onClick={() => setSettings(false)}>Fechar</button>
+        </Sheet>
+      )}
 
       {problem && closed !== problem.kind && (
         <Sheet title={problem.title} onClose={() => setClosed(problem.kind)}>
