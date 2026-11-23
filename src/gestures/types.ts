@@ -11,6 +11,8 @@ export interface GestureFrame {
   /** Time in milliseconds. It always goes up. */
   t: number;
   hands: Point[][];
+  /** The label of each hand ("Left" or "Right"), in the same order. It tells a hand from the other between frames. */
+  labels?: string[];
 }
 
 export interface GestureRule {

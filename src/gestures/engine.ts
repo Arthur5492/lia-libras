@@ -40,7 +40,8 @@ export class GestureEngine {
   private advance(rule: GestureRule, t: number): void {
     if (this.fired.has(rule.id)) return;
     if (!this.since.has(rule.id)) this.since.set(rule.id, t);
-    const progress = Math.min(1, (t - this.since.get(rule.id)!) / rule.holdMs);
+    // A rule without a hold time (a movement) triggers at once.
+    const progress = rule.holdMs <= 0 ? 1 : Math.min(1, (t - this.since.get(rule.id)!) / rule.holdMs);
     this.show(rule.id, progress);
     if (progress >= 1) {
       this.fired.add(rule.id);

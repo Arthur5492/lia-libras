@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { GestureEngine } from "../../src/gestures/engine";
-import { BOTH_HANDS_OPEN, isOpenHand } from "../../src/gestures/rules";
+import { BOTH_HANDS_OPEN, isOpenHand, SWIPE } from "../../src/gestures/rules";
 import type { GestureFrame, Point } from "../../src/gestures/types";
 
 /**
@@ -131,5 +131,39 @@ describe("GestureEngine", () => {
     engine.reset();
     feed(engine, 400, 800);
     expect(triggers).toEqual([]);
+  });
+});
+
+describe("SWIPE", () => {
+  const at = (t: number, x: number, y = 0.5, label = "Right") => ({ t, hands: [hand(true, x, y)], labels: [label] });
+  const run = (...frames: GestureFrame[]) => SWIPE.test(frames);
+
+  test("a hand that crosses the picture is a swipe, to the left or to the right", () => {
+    expect(run(at(0, 0.8), at(200, 0.6), at(400, 0.4))).toBe(true);
+    expect(run(at(0, 0.2), at(200, 0.4), at(400, 0.6))).toBe(true);
+  });
+
+  test("a short movement is not a swipe", () => {
+    expect(run(at(0, 0.5), at(200, 0.55), at(400, 0.6))).toBe(false);
+  });
+
+  test("a movement up or down is not a swipe", () => {
+    expect(run(at(0, 0.8, 0.8), at(200, 0.6, 0.55), at(400, 0.4, 0.3))).toBe(false);
+  });
+
+  test("two frames that are too close in time do not show a movement", () => {
+    expect(run(at(0, 0.8), at(100, 0.4))).toBe(false);
+  });
+
+  test("two different hands are not one hand that moves", () => {
+    const frames = [at(0, 0.8, 0.5, "Left"), at(200, 0.4, 0.5, "Right")];
+    expect(run(...frames)).toBe(false);
+  });
+
+  test("the engine triggers at once, with no hold time", () => {
+    const triggers: string[] = [];
+    const engine = new GestureEngine([SWIPE], { onTrigger: (id) => triggers.push(id) });
+    [at(0, 0.8), at(200, 0.6), at(400, 0.4)].forEach((f) => engine.push(f));
+    expect(triggers).toEqual(["swipe"]);
   });
 });

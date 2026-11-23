@@ -1,4 +1,4 @@
-import type { GestureRule, Point } from "./types";
+import type { GestureFrame, GestureRule, Point } from "./types";
 
 // Indexes of the 21 hand points (MediaPipe).
 const WRIST = 0;
@@ -58,5 +58,43 @@ export const BOTH_HANDS_OPEN: GestureRule = {
   test(recent) {
     const now = recent[recent.length - 1];
     return now !== undefined && now.hands.filter(isOpenHand).length >= 2;
+  },
+};
+
+// Limits from the first collection app, where the movement was tested with real people.
+/** The hand must move at least this far across the picture (image units, 0 to 1)... */
+const SWIPE_MIN_DX = 0.3;
+/** ...and not more than this up or down. */
+const SWIPE_MAX_DY = 0.16;
+/** Two samples closer in time than this (in milliseconds) do not show a movement. */
+const SWIPE_MIN_MS = 120;
+
+function center(hand: Point[]): { x: number; y: number } {
+  return {
+    x: hand.reduce((sum, p) => sum + p.x, 0) / hand.length,
+    y: hand.reduce((sum, p) => sum + p.y, 0) / hand.length,
+  };
+}
+
+/** The center of each hand of a frame, with an id that stays the same between frames (the label of the hand). */
+function centers(frame: GestureFrame): { id: string; x: number; y: number }[] {
+  return frame.hands.map((hand, i) => ({ id: frame.labels?.[i] ?? `hand-${i}`, ...center(hand) }));
+}
+
+/** A hand that crosses the picture from one side to the other, in less than a second. It goes to the next sign. */
+export const SWIPE: GestureRule = {
+  id: "swipe",
+  holdMs: 0,
+  windowMs: 800,
+  test(recent) {
+    const now = recent[recent.length - 1];
+    if (!now) return false;
+    return centers(now).some((hand) =>
+      recent.slice(0, -1).some((sample) => {
+        if (now.t - sample.t < SWIPE_MIN_MS) return false;
+        const before = centers(sample).find((other) => other.id === hand.id);
+        return before !== undefined && Math.abs(hand.x - before.x) >= SWIPE_MIN_DX && Math.abs(hand.y - before.y) <= SWIPE_MAX_DY;
+      }),
+    );
   },
 };
