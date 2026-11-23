@@ -1,3 +1,5 @@
+import type { Notification, RejectionReason } from "./api";
+
 // TEMPLATE. All texts for errors and alerts are here, and they are placeholders.
 // Later, they will follow the guides of large companies (see "Error and alert messages" in README.md).
 // To change a text, change it here only. The code and the pages do not need to change.
@@ -46,4 +48,23 @@ const MESSAGES: Record<string, string> = {
 /** Text for a code. For a code that is not in the list, show the code, so the problem is easy to report. */
 export function messageFor(code: string): string {
   return MESSAGES[code] ?? `Erro: ${code}`;
+}
+
+/** Text for each reason that a reviewer can give when a recording is rejected. */
+export const REJECTION_REASON_TEXT: Record<RejectionReason, string> = {
+  wrong_sign: "Sinal errado",
+  hands_not_visible: "As mãos não aparecem",
+  body_not_visible: "Corpo fora do enquadramento",
+  incomplete_motion: "Movimento incompleto",
+  other: "Outro motivo",
+};
+
+/** Title for the banner and the bell, and the reason (if any) for the list of the bell. */
+export function notificationText(item: Notification): { title: string; detail?: string } {
+  const name = item.sign_name ?? "um sinal";
+  if (item.type === "recording_accepted") return { title: `Sua gravação de ${name} foi aceita` };
+  return {
+    title: `Sua gravação de ${name} foi rejeitada`,
+    detail: item.reason ? `Motivo: ${REJECTION_REASON_TEXT[item.reason]}` : undefined,
+  };
 }
