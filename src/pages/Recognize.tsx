@@ -9,7 +9,7 @@ import { useCamera } from "../capture/useCamera";
 import { messageFor } from "../messages";
 import { useNotify } from "../notifications";
 import { featuresFor } from "../recognize/features";
-import { loadModelPackage, type ModelPackage } from "../recognize/model";
+import { loadModelPackage, shownName, type ModelPackage } from "../recognize/model";
 import { Recognizer } from "../recognize/recognizer";
 import { clampTuning, clearTuning, defaultTuning, loadTuning, saveTuning, TUNING_LIMITS, type Tuning } from "../recognize/tuning";
 import { RoundButton } from "../ui/RoundButton";
@@ -189,7 +189,7 @@ export function Recognize() {
       if (step.word !== null) {
         if (handsSince.current !== null) setLatency(Math.round(frame.t - handsSince.current));
         handsSince.current = frame.t;
-        announce(model.classes[step.word].name);
+        announce(shownName(model.classes[step.word]));
       }
     });
     return () => {

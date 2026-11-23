@@ -4,7 +4,8 @@ import type { LayersModel, Tensor } from "@tensorflow/tfjs";
 /**
  * A model package is a folder with four files:
  * - `model.json` and its weights: the model in the TensorFlow.js layers format.
- * - `classes.json`: the signs, in the order of the outputs of the model.
+ * - `classes.json`: the signs, in the order of the outputs of the model. Each one has a `slug`, a `name` and,
+ *   if the full name is too long to say, a `short` text.
  * - `meta.json`: how to use the model.
  */
 export interface ModelMeta {
@@ -26,7 +27,15 @@ export interface ModelMeta {
 
 export interface SignClass {
   slug: string;
+  /** The full name, for lists. */
   name: string;
+  /** A short text for the big word, the phrase and the voice. For a letter it is only the letter, so spelling does not say "Letra" each time. */
+  short?: string;
+}
+
+/** The text that the recognize screen shows and says for a sign. */
+export function shownName(sign: SignClass): string {
+  return sign.short ?? sign.name;
 }
 
 export interface ModelPackage {

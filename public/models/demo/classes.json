@@ -9,27 +9,33 @@
  },
  {
   "slug": "h",
-  "name": "Letra H"
+  "name": "Letra H",
+  "short": "H"
  },
  {
   "slug": "x",
-  "name": "Letra X"
+  "name": "Letra X",
+  "short": "X"
  },
  {
   "slug": "k",
-  "name": "Letra K"
+  "name": "Letra K",
+  "short": "K"
  },
  {
   "slug": "a",
-  "name": "Letra A"
+  "name": "Letra A",
+  "short": "A"
  },
  {
   "slug": "b",
-  "name": "Letra B"
+  "name": "Letra B",
+  "short": "B"
  },
  {
   "slug": "f",
-  "name": "Letra F"
+  "name": "Letra F",
+  "short": "F"
  },
  {
   "slug": "tchau",
@@ -37,6 +43,7 @@
  },
  {
   "slug": "t",
-  "name": "Letra T"
+  "name": "Letra T",
+  "short": "T"
  }
 ]
