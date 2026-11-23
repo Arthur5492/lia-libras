@@ -345,19 +345,21 @@ export function Collect() {
   const target = session?.target_per_sign ?? 4;
 
   // A problem or an end that needs a choice from the person comes in a pop-up.
-  const blocker: { kind: string; title: string; text: string; action: string; run: () => void } | null =
+  const blocker: { kind: string; title: string; text: string; action?: string; run?: () => void } | null =
     phase === "error"
       ? { kind: "camera", title: "Câmera indisponível", text: messageFor("camera_error"), action: "Tentar de novo", run: () => setCameraKey((k) => k + 1) }
       : loadError
         ? { kind: "session", title: "Não foi possível carregar os sinais", text: loadError, action: "Tentar de novo", run: () => setSessionKey((k) => k + 1) }
         : session && !sign
-          ? {
-              kind: "done",
-              title: "Sessão terminada",
-              text: session.signs.length === 0 ? "Você gravou todos os sinais disponíveis. Obrigado!" : "Obrigado por gravar!",
-              action: "Nova sessão",
-              run: () => setSessionKey((k) => k + 1),
-            }
+          ? session.signs.length === 0
+            ? { kind: "done", title: "Sinais totalmente gravados!", text: "Você gravou todos os sinais disponíveis, obrigado!" }
+            : {
+                kind: "done",
+                title: "Sequência concluída!",
+                text: "Obrigado por gravar! Ainda há sinais esperando.",
+                action: "Gravar mais sinais",
+                run: () => setSessionKey((k) => k + 1),
+              }
           : null;
   const blockerKind = blocker?.kind ?? null;
   useEffect(() => setClosed(null), [blockerKind]);
@@ -411,7 +413,10 @@ export function Collect() {
       {blocker && closed !== blocker.kind && (
         <Sheet title={blocker.title} onClose={() => setClosed(blocker.kind)}>
           <p>{blocker.text}</p>
-          <button type="button" className="button button--primary" onClick={blocker.run}>{blocker.action}</button>
+          {blocker.action && blocker.run && (
+            <button type="button" className="button button--primary" onClick={blocker.run}>{blocker.action}</button>
+          )}
+          <button type="button" className="button button--quiet" onClick={() => setClosed(blocker.kind)}>Fechar</button>
         </Sheet>
       )}
 
