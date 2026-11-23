@@ -5,16 +5,17 @@ import { assignHands } from "../../shared/hands";
 import { saveFlags } from "../../shared/framing";
 import { recordingMetrics } from "../../shared/metrics";
 import { api, ApiError, errorMessage, type NextSigns } from "../api";
-import { useAuth, useProfile } from "../auth";
+import { useAuth } from "../auth";
 import { missingInFrame, type Missing } from "../../shared/framing";
 import { drawLive } from "../capture/overlay";
 import { packFrames } from "../capture/pack";
 import { loadLandmarkers, recordFrames, startCamera, stopCamera, watchFrames, type Landmarkers } from "../capture/recorder";
 import { GestureEngine } from "../gestures/engine";
-import { BOTH_HANDS_OPEN } from "../gestures/rules";
+import { BOTH_HANDS_OPEN, SWIPE } from "../gestures/rules";
 import { messageFor } from "../messages";
 import { useNotify } from "../notifications";
 import { ReferenceVideo } from "../components/ReferenceVideo";
+import { SignComplete } from "../components/SignComplete";
 import { RecordButton } from "../ui/RecordButton";
 import { RoundButton } from "../ui/RoundButton";
 import { Sheet } from "../ui/Sheet";
@@ -32,8 +33,10 @@ const GOOD_FRAMES = 3;
 const BAD_FRAMES = 6;
 // The hint about the framing comes after this time, so a short loss does not show a message.
 const HINT_DELAY_MS = 1500;
+// After a sign is complete, the swipe does not count for this time, so the person sees the celebration.
+const COMPLETE_GRACE_MS = 1200;
 
-type Phase = "starting" | "ready" | "countdown" | "recording" | "result" | "error";
+type Phase = "starting" | "ready" | "countdown" | "recording" | "result" | "complete" | "error";
 
 interface Framing {
   state: "unknown" | "ok" | "bad";
@@ -63,7 +66,6 @@ function failureText(error: unknown): string {
 }
 
 export function Collect() {
-  const profile = useProfile();
   const { setProfile } = useAuth();
   const notify = useNotify();
 
@@ -95,6 +97,9 @@ export function Collect() {
   // Values that the callbacks of the gesture engine and of the timers must read when they run, not when they were made.
   const live = useRef({ phase, sign: undefined as NextSigns["signs"][number] | undefined, index, done });
   const engine = useRef<GestureEngine | null>(null);
+  const swipeEngine = useRef<GestureEngine | null>(null);
+  const completeAt = useRef(0);
+  const next = useRef<() => void>(() => {});
   const begin = useRef<() => void>(() => {});
 
   const sign = session?.signs[index];
@@ -103,26 +108,44 @@ export function Collect() {
     onProgress: (_, value) => setProgress(value),
     onTrigger: () => begin.current(),
   });
+  swipeEngine.current ??= new GestureEngine([SWIPE], { onTrigger: () => next.current() });
 
   // The session: the signs to record now.
   useEffect(() => {
     let active = true;
     setSession(null);
     setLoadError("");
-    api.nextSigns(5)
-      .then((next) => {
+    (async () => {
+      try {
+        // The uploads of the last session must finish first, or a sign that is complete could come back.
+        await Promise.allSettled(saved.current.map((entry) => entry.upload));
+        const [sessionNow, me] = await Promise.all([api.nextSigns(5), api.me()]);
         if (!active) return;
-        setSession(next);
+        saved.current = [];
+        setCanUndo(false);
+        setProfile(me);
+        setSession(sessionNow);
         setIndex(0);
-        setDone(Object.fromEntries(next.signs.map((s) => [s.id, profile.sign_recordings[s.id]?.length ?? 0])));
-      })
-      .catch((error) => active && setLoadError(errorMessage(error)));
+        setDone(Object.fromEntries(sessionNow.signs.map((s) => [s.id, me.sign_recordings[s.id]?.length ?? 0])));
+      } catch (error) {
+        if (active) setLoadError(errorMessage(error));
+      }
+    })();
     return () => {
       active = false;
     };
-    // The profile is read once, at the start of the session.
+    // `setProfile` does not change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionKey]);
+
+  // The end of a session with signs that are not complete: the next session starts by itself.
+  useEffect(() => {
+    if (session && !sign && session.signs.length > 0) setSessionKey((k) => k + 1);
+  }, [session, sign]);
+
+  useEffect(() => {
+    if (!session && !loadError) return notify("Carregando os sinais…", { stay: true });
+  }, [session, loadError, notify]);
 
   // The camera and the detectors.
   useEffect(() => {
@@ -175,13 +198,23 @@ export function Collect() {
 
   // While the screen waits, and during the countdown, draw the outline of the person. Only a waiting screen looks for the gesture.
   useEffect(() => {
-    if (phase !== "ready" && phase !== "countdown") return;
+    if (phase !== "ready" && phase !== "countdown" && phase !== "complete") return;
     const marks = landmarkers.current;
     const camera = video.current;
     const canvas = overlay.current;
     if (!marks || !camera || !canvas) return;
     if (phase === "ready") engine.current!.reset();
+    if (phase === "complete") swipeEngine.current!.reset();
     const stop = watchFrames(camera, marks, (frame) => {
+      const moment = live.current.phase;
+      if (moment === "complete") {
+        // The person moves the hand to go to the next sign. The outline is not drawn in this state.
+        drawLive(canvas, camera, null);
+        if (performance.now() - completeAt.current > COMPLETE_GRACE_MS) {
+          swipeEngine.current!.push({ t: frame.t, hands: frame.hands.map((hand) => hand.image), labels: frame.hands.map((hand) => hand.label) });
+        }
+        return;
+      }
       updateFraming(missingInFrame(frame.pose?.image));
       const state = framingRef.current.state;
       drawLive(canvas, camera, frame, state === "unknown" ? "neutral" : state);
@@ -245,12 +278,13 @@ export function Collect() {
     setProgress(0);
     setPhase("recording");
 
-    const finish = async (outcome: Result) => {
+    const finish = async (outcome: Result, after: Phase = "ready") => {
       setResult(outcome);
       setPhase("result");
       await wait(outcome.ok ? OK_MS : BAD_MS);
       setResult(null);
-      setPhase("ready");
+      if (after === "complete") completeAt.current = performance.now();
+      setPhase(after);
     };
 
     try {
@@ -296,13 +330,20 @@ export function Collect() {
       const total = (counts[current.id] ?? 0) + 1;
       setDone((d) => ({ ...d, [current.id]: (d[current.id] ?? 0) + 1 }));
       const complete = total >= (session?.target_per_sign ?? Infinity);
-      await finish({ ok: true });
-      if (complete) setIndex((i) => i + 1);
+      await finish({ ok: true }, complete ? "complete" : "ready");
     } catch (error) {
       await finish({ ok: false, text: error instanceof ApiError ? failureText(error) : messageFor("camera_error") });
     }
   }
   begin.current = startRecording;
+
+  /** Go to the next sign, after a sign is complete. */
+  function goNext() {
+    if (live.current.phase !== "complete") return;
+    setPhase("ready");
+    setIndex((i) => i + 1);
+  }
+  next.current = goNext;
 
   function cancelCountdown() {
     if (live.current.phase !== "countdown") return;
@@ -351,16 +392,8 @@ export function Collect() {
       ? { kind: "camera", title: "Câmera indisponível", text: messageFor("camera_error"), action: "Tentar de novo", run: () => setCameraKey((k) => k + 1) }
       : loadError
         ? { kind: "session", title: "Não foi possível carregar os sinais", text: loadError, action: "Tentar de novo", run: () => setSessionKey((k) => k + 1) }
-        : session && !sign
-          ? session.signs.length === 0
-            ? { kind: "done", title: "Sinais totalmente gravados!", text: "Você gravou todos os sinais disponíveis, obrigado!" }
-            : {
-                kind: "done",
-                title: "Sequência concluída!",
-                text: "Obrigado por gravar! Ainda há sinais esperando.",
-                action: "Gravar mais sinais",
-                run: () => setSessionKey((k) => k + 1),
-              }
+        : session && !sign && session.signs.length === 0
+          ? { kind: "done", title: "Sinais totalmente gravados!", text: "Você gravou todos os sinais disponíveis, obrigado!" }
           : null;
   const blockerKind = blocker?.kind ?? null;
   useEffect(() => setClosed(null), [blockerKind]);
@@ -398,6 +431,7 @@ export function Collect() {
         </div>
       )}
       {phase === "recording" && <div className="frame frame--red" />}
+      {phase === "complete" && <SignComplete onNext={goNext} />}
       {phase === "result" && result && (
         <>
           <div className={`dim result ${result.ok ? "result--ok" : "result--bad"}`}>
