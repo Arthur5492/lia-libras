@@ -1,4 +1,6 @@
 tests
-scripts
 training
 contract
+scripts/analysis
+scripts/release.ts
+scripts/make_icons.mjs
