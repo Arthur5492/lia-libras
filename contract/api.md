@@ -29,7 +29,8 @@ Hono app in `server/app.ts`. `api/index.ts` is the Vercel entry point.
 | `GET /api/me/recordings` | Profile | Own recordings |
 | `DELETE /api/me/recordings/{id}` | Profile | Delete an own recording |
 | `GET /api/recordings/{id}/replay` | Profile | Landmarks for the replay (author or reviewer) |
-| `GET /api/review/recordings` | Review | `status` is necessary. Use a maximum of one filter: `sign_id`, `trust_level`, `flag` or `username`. Also `cursor`, `limit` |
+| `GET /api/review/recordings` | Review | `status` is necessary. Use a maximum of one filter: `sign_id`, `trust_level`, `flag` or `username`. Also `cursor`, `limit`, `include_skipped=1`. Skipped recordings are hidden by default. A page can have fewer items than `limit`: follow `next_cursor` until it is null |
+| `POST /api/review/recordings/{id}/skip` | Review | Hide the recording from this reviewer's list. Not allowed for the own recordings. The API keeps the last 100 |
 | `PATCH /api/review/recordings` | Review | `{"updates": [{"id", "status": "accepted" \| "rejected" \| "pending"}]}`, maximum 50 |
 | `GET /api/admin/users` | Admin | Paginated list, or `?username=` |
 | `PATCH /api/admin/users/{uid}` | Admin | `trust_level`, `role` |

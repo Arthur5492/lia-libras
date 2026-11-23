@@ -243,6 +243,34 @@ describe.skipIf(!EMULATED)("api", () => {
     expect(await doc("recordings", rec)).toMatchObject({ status: "unreviewed", reviewed_by: null });
   });
 
+  test("skip hides a recording from the reviewer who skipped it", async () => {
+    const signId = await sign();
+    const author = await person();
+    const reviewer = await person("trusted");
+    const other = await person("trusted");
+    const first = (await author.post("/api/recordings", makeBody(signId))).body.recording.id;
+    const second = (await author.post("/api/recordings", makeBody(signId))).body.recording.id;
+    const list = async (who: typeof reviewer, extra = "") =>
+      (await who.get(`/api/review/recordings?status=unreviewed${extra}`)).body.items.map((i: any) => i.id);
+
+    expect((await reviewer.post(`/api/review/recordings/${first}/skip`, {})).status).toBe(204);
+    expect(await list(reviewer)).toEqual([second]);
+    expect(await list(reviewer, "&include_skipped=1")).toEqual([second, first]);
+    // Another reviewer still sees both.
+    expect(await list(other)).toEqual([second, first]);
+    // A second skip of the same recording does not make a copy.
+    await reviewer.post(`/api/review/recordings/${first}/skip`, {});
+    expect((await doc("users", reviewer.uid)).review_skips).toEqual([first]);
+
+    const own = (await reviewer.post("/api/recordings", makeBody(signId))).body.recording.id;
+    const refused = await reviewer.post(`/api/review/recordings/${own}/skip`, {});
+    expect([refused.status, refused.body.code]).toEqual([403, "cannot_review_own"]);
+    const missing = await reviewer.post("/api/review/recordings/none/skip", {});
+    expect([missing.status, missing.body.code]).toEqual([404, "recording_not_found"]);
+    const regular = await author.post(`/api/review/recordings/${first}/skip`, {});
+    expect([regular.status, regular.body.code]).toEqual([403, "reviewer_only"]);
+  });
+
   test("reference and counters", async () => {
     const signId = await sign();
     const expert = await person("expert");

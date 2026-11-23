@@ -24,6 +24,7 @@ Firestore keeps persons and metadata. The `.npz` files stay in the bucket (see [
 | `consent_at` | timestamp | |
 | `recording_count` | int | Recordings that are not deleted |
 | `sign_recordings` | map | `{sign_id: [indexes]}`. The API uses it to find the next index without a read of the recordings. Not indexed |
+| `review_skips` | string[] | Ids of the recordings that this reviewer skipped. The last 100. Not indexed |
 | `created_at`, `updated_at` | timestamp | |
 
 ## `usernames/{username_key}`

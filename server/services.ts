@@ -26,6 +26,8 @@ const PENDING = new Set(["unreviewed", "trusted_unreviewed"]);
 const LISTABLE_STATUSES = ["unreviewed", "trusted_unreviewed", "accepted", "rejected"];
 const STALE_UPLOAD_MS = 2 * 60 * 1000;
 const MAX_REVIEW_BATCH = 50;
+/** A reviewer remembers this number of skipped recordings. The oldest ones drop out first. */
+const MAX_REVIEW_SKIPS = 100;
 const PROFILES_CACHE_MS = 60 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -451,6 +453,8 @@ export interface ReviewQuery {
   username?: string;
   cursor?: string;
   limit?: string;
+  /** "1" gives the recordings that the reviewer skipped. The default hides them. */
+  include_skipped?: string;
 }
 
 export async function reviewList(db: Firestore, settings: Settings, user: Doc, params: ReviewQuery) {
@@ -475,10 +479,26 @@ export async function reviewList(db: Firestore, settings: Settings, user: Doc, p
   }
   const limit = Math.max(1, Math.min(Number(params.limit) || settings.pageSize, settings.pageSize));
   const snaps = (await query.limit(limit).get()).docs;
+  // The filter runs after the query, so a page can have fewer items than `limit`. The cursor still comes from the
+  // last document of the query. The client must follow `next_cursor` until it is null.
+  const skipped = new Set<string>(params.include_skipped === "1" ? [] : (user.review_skips ?? []));
   return {
-    items: snaps.map((s) => ({ ...publicRecording(s.id, s.data()), is_own: s.get("uuid") === user.uuid })),
+    items: snaps
+      .filter((s) => !skipped.has(s.id))
+      .map((s) => ({ ...publicRecording(s.id, s.data()), is_own: s.get("uuid") === user.uuid })),
     next_cursor: snaps.length === limit ? snaps[snaps.length - 1].id : null,
   };
+}
+
+/** Remember that this reviewer skipped a recording. A review decision does not need this. */
+export async function reviewSkip(db: Firestore, uid: string, user: Doc, id: string) {
+  const recording = await visibleRecording(db, id);
+  if (recording.uuid === user.uuid) throw new ApiError(403, "cannot_review_own", { id });
+  const userRef = db.collection(USERS).doc(uid);
+  await transaction(db, async (t) => {
+    const current: string[] = (await t.get(userRef)).get("review_skips") ?? [];
+    t.update(userRef, { review_skips: [...current.filter((x) => x !== id), id].slice(-MAX_REVIEW_SKIPS) });
+  });
 }
 
 export async function reviewBatch(db: Firestore, uid: string, user: Doc, updates: unknown) {

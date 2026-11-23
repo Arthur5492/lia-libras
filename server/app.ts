@@ -147,6 +147,12 @@ app.patch("/review/recordings", async (c) => {
   return c.json({ items: await s.reviewBatch(getDb(), caller.uid, caller.user, body.updates) });
 });
 
+app.post("/review/recordings/:id/skip", async (c) => {
+  const caller = await reviewerOf(c);
+  await s.reviewSkip(getDb(), caller.uid, caller.user, c.req.param("id"));
+  return c.body(null, 204);
+});
+
 // ---------- administration ----------
 
 app.get("/admin/users", async (c) => {
