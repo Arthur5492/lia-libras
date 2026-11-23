@@ -15,14 +15,12 @@ import { SignIn } from "./pages/SignIn";
 
 function Shell() {
   const { session } = useAuth();
-  if (session.state !== "ready") {
-    return <div className="app"><Outlet /></div>;
-  }
+  const signedIn = session.state === "ready";
   return (
-    <NotificationsProvider>
+    <NotificationsProvider account={signedIn}>
       <div className="app">
         <Outlet />
-        <TabBar />
+        {signedIn && <TabBar />}
       </div>
     </NotificationsProvider>
   );
@@ -71,8 +69,9 @@ export function App() {
     <Routes>
       <Route element={<Shell />}>
         <Route index element={<Start />} />
+        {/* Open to everyone: the recognizer sends nothing to the server. */}
+        <Route path="reconhecer" element={<Recognize />} />
         <Route element={<NeedsProfile />}>
-          <Route path="reconhecer" element={<Recognize />} />
           <Route path="coletar" element={<Collect />} />
           <Route path="analisar" element={<Review />} />
           <Route path="perfil" element={<Profile />} />

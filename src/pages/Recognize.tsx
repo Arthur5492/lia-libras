@@ -1,6 +1,6 @@
 import { IconChevronDown, IconSettings, IconVolume, IconVolumeOff } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useProfile } from "../auth";
+import { useAuth } from "../auth";
 import { missingInFrame } from "../../shared/framing";
 import { FramingTracker, type Framing } from "../capture/framingTracker";
 import { drawLive } from "../capture/overlay";
@@ -62,7 +62,8 @@ export function Recognize() {
   const [open, setOpen] = useState(false);
   const [closed, setClosed] = useState<string | null>(null);
   // The settings of an admin: the numbers of the recognizer, and two numbers that show their effect.
-  const admin = useProfile().role === "admin";
+  const { session } = useAuth();
+  const admin = session.state === "ready" && session.profile.role === "admin";
   const [tuning, setTuning] = useState<Tuning | null>(null);
   const [settings, setSettings] = useState(false);
   const [fps, setFps] = useState(0);

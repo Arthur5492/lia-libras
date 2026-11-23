@@ -36,8 +36,9 @@ export function useNotify(): Value["notify"] {
 /**
  * Notifications of the server (a recording that a reviewer accepted or rejected), and the messages that the pages make.
  * The bell keeps the list and the number of unread ones. The banner at the top shows one message at a time and goes away.
+ * Without an `account` (a person who did not sign in) there is no bell and no check of the server: only the banner.
  */
-export function NotificationsProvider({ children }: { children: ReactNode }) {
+export function NotificationsProvider({ children, account = true }: { children: ReactNode; account?: boolean }) {
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [banner, setBanner] = useState<Banner | null>(null);
@@ -82,6 +83,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [notify]);
 
   useEffect(() => {
+    if (!account) return;
     void refresh();
     const id = window.setInterval(refresh, POLL_MS);
     const onVisible = () => document.visibilityState === "visible" && void refresh();
@@ -91,7 +93,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.clearTimeout(timer.current);
     };
-  }, [refresh]);
+  }, [refresh, account]);
 
   async function openList() {
     setOpen(true);
@@ -109,10 +111,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   return (
     <NotificationsContext.Provider value={value}>
       {children}
-      <button type="button" className="bell" aria-label={unread > 0 ? `Notificações, ${unread} não lidas` : "Notificações"} onClick={openList}>
+      {account && <button type="button" className="bell" aria-label={unread > 0 ? `Notificações, ${unread} não lidas` : "Notificações"} onClick={openList}>
         <IconBell aria-hidden="true" />
         {unread > 0 && <span className="bell__badge" aria-hidden="true">{unread > 9 ? "9+" : unread}</span>}
-      </button>
+      </button>}
       <div className={`banner${banner ? " banner--on" : ""}`} role="status" aria-live="polite">
         {banner && (
           <>
