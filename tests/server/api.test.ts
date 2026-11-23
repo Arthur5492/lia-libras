@@ -127,6 +127,17 @@ describe.skipIf(!EMULATED)("api", () => {
     expect([broken.status, broken.body.code]).toEqual([422, "invalid_pose"]);
   });
 
+  test("a person who is not in the picture is not saved", async () => {
+    const signId = await sign();
+    const p = await person();
+    const hidden = await p.post("/api/recordings", makeBody(signId, { lostPoints: [11] }));
+    expect([hidden.status, hidden.body.code]).toEqual([422, "low_quality"]);
+    expect(hidden.body.validation_flags).toEqual(["low_framing"]);
+    // One arm is enough, and the face does not matter.
+    const oneArm = await p.post("/api/recordings", makeBody(signId, { lostPoints: [0, 13, 15] }));
+    expect(oneArm.status).toBe(201);
+  });
+
   test("unknown or inactive sign", async () => {
     const p = await person();
     for (const signId of ["nao-existe", await sign("parado", false)]) {

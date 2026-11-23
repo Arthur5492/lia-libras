@@ -2,10 +2,11 @@
 import { randomUUID } from "node:crypto";
 import { FieldValue, Timestamp, type DocumentData, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { CaptureError, decodeCapture, SCHEMA_VERSION, type UploadBody } from "../shared/capture.js";
+import { saveFlags } from "../shared/framing.js";
 import { activeHand, assignHands } from "../shared/hands.js";
 import { isRejectionReason } from "../shared/review.js";
 import {
-  assessReference, basicFlags, buildProfile, recordingMetrics, type Metrics, type ReferenceProfiles,
+  assessReference, buildProfile, recordingMetrics, type Metrics, type ReferenceProfiles,
 } from "../shared/metrics.js";
 import {
   NamingError, normalizeMetadata, slugify, usernameKey, validateMetadataSchema, type MetadataSchema,
@@ -282,7 +283,7 @@ export async function upload(
     throw error;
   }
   const metrics = recordingMetrics(capture);
-  const failures = basicFlags(metrics);
+  const failures = saveFlags(capture, metrics);
   if (failures.length > 0) throw new ApiError(422, "low_quality", { validation_flags: failures, metrics });
   const assessment = assessReference(metrics, await loadProfiles(db), signId);
 

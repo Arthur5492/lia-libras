@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { emptyHand, POSE_DIMS, POSE_POINTS, WORLD_DIMS, type Capture } from "../../shared/capture";
-import { framingCoverage, framingFlags, missingInFrame } from "../../src/capture/framing";
+import { framingCoverage, framingFlags, missingInFrame, saveFlags } from "../../shared/framing";
+import { recordingMetrics } from "../../shared/metrics";
 
 type Pose = { x: number; y: number; visibility?: number }[];
 
@@ -87,5 +88,25 @@ describe("framingCoverage", () => {
   test("frames without a pose count as missing shoulders", () => {
     const result = framingCoverage(capture(10, (i) => (i < 5 ? null : [])));
     expect(result).toEqual({ rate: 0.5, missing: "shoulders" });
+  });
+});
+
+describe("saveFlags", () => {
+  test("a person who is in the picture has no flag about the pose", () => {
+    // This fake capture has no hands, so only the flag about the hands is left.
+    const good = capture(20, () => []);
+    expect(saveFlags(good, recordingMetrics(good))).toEqual(["low_any_hand_rate"]);
+  });
+
+  test("the framing is flagged when the pose is there but the shoulders are not visible", () => {
+    const hidden = capture(20, () => [11]);
+    expect(saveFlags(hidden, recordingMetrics(hidden))).toContain("low_framing");
+  });
+
+  test("the framing is not flagged again when the pose rate already is", () => {
+    const missing = capture(20, (i) => (i < 10 ? null : []));
+    const flags = saveFlags(missing, recordingMetrics(missing));
+    expect(flags).toContain("low_pose_rate");
+    expect(flags).not.toContain("low_framing");
   });
 });

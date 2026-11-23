@@ -2,10 +2,11 @@ import { IconCheck, IconChevronsRight, IconInfoSmall, IconTrash, IconX } from "@
 import { useEffect, useRef, useState } from "react";
 import { encodeCapture, MIN_FRAMES } from "../../shared/capture";
 import { assignHands } from "../../shared/hands";
-import { basicFlags, recordingMetrics } from "../../shared/metrics";
+import { saveFlags } from "../../shared/framing";
+import { recordingMetrics } from "../../shared/metrics";
 import { api, ApiError, errorMessage, type NextSigns } from "../api";
 import { useAuth, useProfile } from "../auth";
-import { framingFlags, missingInFrame, type Missing } from "../capture/framing";
+import { missingInFrame, type Missing } from "../../shared/framing";
 import { drawLive } from "../capture/overlay";
 import { packFrames } from "../capture/pack";
 import { loadLandmarkers, recordFrames, startCamera, stopCamera, watchFrames, type Landmarkers } from "../capture/recorder";
@@ -257,10 +258,9 @@ export function Collect() {
       const capture = packFrames(frames);
       if (capture.frameCount < MIN_FRAMES) return await finish({ ok: false, text: messageFor("few_frames") });
       // Same rules as the server. The server still decides, but the person sees the reason at once.
-      const flags = basicFlags(recordingMetrics(assignHands(capture)));
+      const assigned = assignHands(capture);
+      const flags = saveFlags(assigned, recordingMetrics(assigned));
       if (flags.length > 0) return await finish({ ok: false, text: flags.map(messageFor).join(" ") });
-      const framingProblems = framingFlags(capture);
-      if (framingProblems.length > 0) return await finish({ ok: false, text: framingProblems.map(messageFor).join(" ") });
 
       const entry: Saved = {
         signIndex: at,

@@ -65,5 +65,5 @@ Use this to teach the model to accept each hand:
 Calculate it for each recording, after the wrist rule. If each channel has a hand in at least half of the frames, use the channel with more wrist movement. If not, use the channel with more frames. Values: `left`, `right` or `unknown` (no hand). Use it as extra data only. For static signs the passive hand is usually visible, and the result is not reliable.
 
 ## Validation on upload
-- Reject (do not save): wrong frame count or shapes, values that are not finite, bad timestamps, a sign that is not in the catalog or is not active, a pose in less than 80% of the frames (`low_pose_rate`), or a hand in less than 30% of the frames (`low_any_hand_rate`).
+- Reject (do not save): wrong frame count or shapes, values that are not finite, bad timestamps, a sign that is not in the catalog or is not active, a pose in less than 80% of the frames (`low_pose_rate`), a hand in less than 30% of the frames (`low_any_hand_rate`), or a person who is not in the picture in at least 60% of the frames: both shoulders and one arm, from the elbow to the wrist, with a pose visibility of at least 0.5 (`low_framing`, see `shared/framing.ts`).
 - Warn (save with a flag): comparison with the reference profile of the sign. The profiles use the sign UUID as key.

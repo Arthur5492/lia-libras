@@ -25,6 +25,8 @@ const HAND_FRAME = HAND_POINTS * HAND_DIMS;
 export interface CaptureOptions {
   frames?: number;
   poseMissing?: number;
+  /** Points of the pose that the detector lost in all the frames: they have a low visibility. */
+  lostPoints?: number[];
   handMissing?: number;
   swapChannels?: boolean;
   twoHands?: boolean;
@@ -63,6 +65,7 @@ export function makeCapture(options: CaptureOptions = {}): Capture {
       capture.pose.set([...LEFT_WRIST, 0, 0.99], (i * POSE_POINTS + 15) * POSE_DIMS);
       capture.pose.set([RIGHT_WRIST[0] + dx, RIGHT_WRIST[1], 0, 0.99], (i * POSE_POINTS + 16) * POSE_DIMS);
     }
+    for (const point of options.lostPoints ?? []) capture.pose[(i * POSE_POINTS + point) * POSE_DIMS + 3] = 0.2;
     // The detector puts each hand in the channel of its label. With swap, the label is wrong.
     const moving = options.swapChannels ? LEFT : RIGHT;
     const other = options.swapChannels ? RIGHT : LEFT;
