@@ -155,4 +155,10 @@ html, body { background: var(--bg); }
   .pop { animation-name: fade; }
   .frame--red { animation: none; }
 }
+.video-play {
+  position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; padding: 0; border: 0;
+  border-radius: 50%; display: grid; place-items: center; background: rgb(14 16 18 / 0.7); color: var(--text); cursor: pointer;
+}
+.video-play svg { width: 36px; height: 36px; }
+
 .steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 10px; color: var(--text); }

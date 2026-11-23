@@ -38,6 +38,7 @@ const MESSAGES: Record<string, string> = {
   cannot_review_own: "Você não pode revisar as suas próprias gravações.",
   invalid_status: "Status não válido.",
   storage_error: "Não foi possível guardar a gravação.",
+  reference_video_error: "Não foi possível carregar o vídeo de exemplo.",
   camera_error: "Não foi possível ligar a câmera.",
 
   // Administration
