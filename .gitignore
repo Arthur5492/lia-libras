@@ -36,3 +36,4 @@ training/out/
 public/demo-model/
 training/.convert-env/
 public/mediapipe/
+signs-import.csv

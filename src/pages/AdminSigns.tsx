@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { api, errorMessage, type Catalog, type MetadataSchema, type Sign, type SignInput } from "../api";
+import { api, ApiError, errorMessage, type Catalog, type MetadataSchema, type Sign, type SignInput } from "../api";
+import { parseSignsCsv, type ParsedSigns } from "../csv";
 
 // ---------- one sign ----------
 
@@ -215,6 +216,111 @@ function TagsEditor({ catalog, onSaved }: { catalog: Catalog; onSaved: (catalog:
   );
 }
 
+// ---------- import ----------
+
+interface Imported {
+  created: number;
+  existing: number;
+  failed: string[];
+}
+
+/** Add many signs from a CSV file. The format of the file is in src/csv.ts. A sign that already exists is skipped. */
+function ImportSigns({ catalog, onCreated }: { catalog: Catalog; onCreated: (sign: Sign) => void }) {
+  const [parsed, setParsed] = useState<ParsedSigns | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [result, setResult] = useState<Imported | null>(null);
+  const [error, setError] = useState("");
+  const codes = Object.keys(catalog.sign_metadata_schema);
+
+  async function choose(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setResult(null);
+    setError("");
+    setParsed(null);
+    if (!file) return;
+    try {
+      setParsed(parseSignsCsv(await file.text(), catalog.sign_metadata_schema));
+    } catch {
+      setError("Não foi possível ler o arquivo.");
+    }
+    // The same file can be chosen again after a change.
+    event.target.value = "";
+  }
+
+  async function run() {
+    if (!parsed) return;
+    const rows = parsed.rows;
+    const out: Imported = { created: 0, existing: 0, failed: [] };
+    setProgress({ done: 0, total: rows.length });
+    for (const [i, row] of rows.entries()) {
+      try {
+        const sign_metadata = Object.fromEntries(codes.map((key) => [key, Boolean(row.tags[key])]));
+        onCreated(await api.createSign({ name: row.name, video_url: row.video_url, sign_metadata }));
+        out.created += 1;
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "slug_taken") out.existing += 1;
+        else out.failed.push(`${row.name}: ${errorMessage(e)}`);
+      }
+      setProgress({ done: i + 1, total: rows.length });
+    }
+    setProgress(null);
+    setParsed(null);
+    setResult(out);
+  }
+
+  return (
+    <section>
+      <h2>Importar sinais</h2>
+      <p className="muted">
+        Escolha um arquivo .csv com a primeira linha <code>name;video_url</code> e uma coluna para cada característica
+        ({codes.join(", ") || "nenhuma por enquanto"}), com 1 para sim e 0 para não. Pode separar por vírgula ou por
+        ponto e vírgula. Um sinal que já existe é ignorado.
+      </p>
+      <div className="field">
+        <label htmlFor="import-file">Arquivo .csv</label>
+        <input id="import-file" type="file" accept=".csv,text/csv" onChange={choose} disabled={progress !== null} />
+      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+
+      {parsed && (
+        <div>
+          <p>
+            <strong>{parsed.rows.length}</strong> {parsed.rows.length === 1 ? "sinal pronto" : "sinais prontos"} para importar.
+          </p>
+          {parsed.ignoredColumns.length > 0 && (
+            <p className="muted">
+              Colunas ignoradas, porque não são características do catálogo: {parsed.ignoredColumns.join(", ")}.
+            </p>
+          )}
+          {parsed.errors.length > 0 && (
+            <ul className="form-error" role="alert">
+              {parsed.errors.map((message) => <li key={message}>{message}</li>)}
+            </ul>
+          )}
+          <ul className="muted">
+            {parsed.rows.slice(0, 5).map((row) => <li key={row.line}>{row.name}</li>)}
+            {parsed.rows.length > 5 && <li>… e mais {parsed.rows.length - 5}.</li>}
+          </ul>
+          <button type="button" className="button button--primary" disabled={parsed.rows.length === 0 || progress !== null} onClick={run}>
+            {progress ? `Importando ${progress.done} de ${progress.total}…` : `Importar ${parsed.rows.length}`}
+          </button>
+        </div>
+      )}
+
+      {result && (
+        <div role="status">
+          <p className="ok">{result.created} criados{result.existing > 0 ? `, ${result.existing} já existiam` : ""}.</p>
+          {result.failed.length > 0 && (
+            <ul className="form-error">
+              {result.failed.map((message) => <li key={message}>{message}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ---------- the page ----------
 
 export function AdminSigns() {
@@ -306,6 +412,8 @@ export function AdminSigns() {
 
       <h2>Novo sinal</h2>
       <SignEditor catalog={catalog} onSaved={replace} />
+
+      <ImportSigns catalog={catalog} onCreated={replace} />
 
       <TagsEditor key={JSON.stringify(catalog.sign_metadata_schema)} catalog={catalog} onSaved={setCatalog} />
     </main>
