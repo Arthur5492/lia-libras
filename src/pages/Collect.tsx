@@ -64,6 +64,9 @@ export function Collect() {
   const [result, setResult] = useState<Result | null>(null);
   const [help, setHelp] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
+  const [cameraKey, setCameraKey] = useState(0);
+  // The pop-up that the person closed. It opens again when the person taps the record button.
+  const [closed, setClosed] = useState<string | null>(null);
 
   const video = useRef<HTMLVideoElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
@@ -107,6 +110,8 @@ export function Collect() {
   // The camera and the detectors.
   useEffect(() => {
     let active = true;
+    setPhase("starting");
+    stopCamera(stream.current);
     (async () => {
       try {
         const marks = await loadLandmarkers();
@@ -127,7 +132,13 @@ export function Collect() {
       stopWatch.current?.();
       stopCamera(stream.current);
     };
-  }, []);
+  }, [cameraKey]);
+
+  // The state of the camera goes to the top of the screen, not over the preview.
+  useEffect(() => {
+    if (phase === "starting") return notify("Ligando a câmera…", { stay: true });
+    if (phase === "error") notify(messageFor("camera_error"));
+  }, [phase, notify]);
 
   // While the screen waits, and during the countdown, draw the outline of the person. Only a waiting screen looks for the gesture.
   useEffect(() => {
@@ -238,7 +249,8 @@ export function Collect() {
   }
 
   function onRecordButton() {
-    if (phase === "countdown") cancelCountdown();
+    if (blocker) setClosed(null);
+    else if (phase === "countdown") cancelCountdown();
     else void startRecording();
   }
 
@@ -269,30 +281,33 @@ export function Collect() {
 
   const ready = phase === "ready";
   const target = session?.target_per_sign ?? 4;
+
+  // A problem or an end that needs a choice from the person comes in a pop-up.
+  const blocker: { kind: string; title: string; text: string; action: string; run: () => void } | null =
+    phase === "error"
+      ? { kind: "camera", title: "Câmera indisponível", text: messageFor("camera_error"), action: "Tentar de novo", run: () => setCameraKey((k) => k + 1) }
+      : loadError
+        ? { kind: "session", title: "Não foi possível carregar os sinais", text: loadError, action: "Tentar de novo", run: () => setSessionKey((k) => k + 1) }
+        : session && !sign
+          ? {
+              kind: "done",
+              title: "Sessão terminada",
+              text: session.signs.length === 0 ? "Você gravou todos os sinais disponíveis. Obrigado!" : "Obrigado por gravar!",
+              action: "Nova sessão",
+              run: () => setSessionKey((k) => k + 1),
+            }
+          : null;
+  const blockerKind = blocker?.kind ?? null;
+  useEffect(() => setClosed(null), [blockerKind]);
   return (
     <main className="screen collect">
       <section className="panel" aria-label="Vídeo de referência">
         {sign && <video key={sign.id} src={sign.video_url} autoPlay loop muted playsInline />}
-        {!session && !loadError && <p className="panel__note">Carregando…</p>}
-        {loadError && <p className="panel__note" role="alert">{loadError}</p>}
-        {session && !sign && (
-          <div className="panel__note">
-            <p>{session.signs.length === 0 ? "Você gravou todos os sinais disponíveis. Obrigado!" : "Sessão terminada. Obrigado!"}</p>
-            <button type="button" className="button button--primary" onClick={() => setSessionKey((k) => k + 1)}>Nova sessão</button>
-          </div>
-        )}
       </section>
 
       <section className="panel panel--mirror" aria-label="Sua câmera">
         <video ref={video} muted playsInline />
         <canvas ref={overlay} />
-        {phase === "starting" && <p className="panel__note">Ligando a câmera…</p>}
-        {phase === "error" && (
-          <div className="panel__note" role="alert">
-            <p>{messageFor("camera_error")}</p>
-            <button type="button" className="button button--primary" onClick={() => window.location.reload()}>Tentar de novo</button>
-          </div>
-        )}
         <div className="panel__fade" />
         {sign && <span className="chip">{Math.min((done[sign.id] ?? 0) + 1, target)} de {target}</span>}
       </section>
@@ -306,7 +321,7 @@ export function Collect() {
       <RecordButton
         progress={progress}
         recording={phase === "recording"}
-        disabled={!sign || (phase !== "ready" && phase !== "countdown")}
+        disabled={!blocker && (!sign || (phase !== "ready" && phase !== "countdown"))}
         onClick={onRecordButton}
       />
 
@@ -329,6 +344,13 @@ export function Collect() {
       <p className="sr-only" role="status">
         {phase === "countdown" ? `Gravação começa em ${count}` : phase === "recording" ? "Gravando" : result?.ok ? "Gravação salva" : (result?.text ?? "")}
       </p>
+
+      {blocker && closed !== blocker.kind && (
+        <Sheet title={blocker.title} onClose={() => setClosed(blocker.kind)}>
+          <p>{blocker.text}</p>
+          <button type="button" className="button button--primary" onClick={blocker.run}>{blocker.action}</button>
+        </Sheet>
+      )}
 
       {help && (
         <Sheet title="Como gravar" onClose={() => setHelp(false)}>

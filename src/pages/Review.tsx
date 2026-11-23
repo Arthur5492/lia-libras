@@ -34,6 +34,7 @@ function Swipe() {
   const [loading, setLoading] = useState(true);
   const [rejecting, setRejecting] = useState(false);
   const [info, setInfo] = useState(false);
+  const [emptyClosed, setEmptyClosed] = useState(false);
 
   const card = useRef<HTMLDivElement>(null);
   const yes = useRef<HTMLDivElement>(null);
@@ -52,6 +53,16 @@ function Swipe() {
   useEffect(() => {
     api.signs().then((r) => setSigns(Object.fromEntries(r.signs.map((s) => [s.id, s])))).catch(() => {});
   }, []);
+
+  // The state of the screen goes to the top, not over the videos.
+  useEffect(() => {
+    if (loading) return notify("Carregando…", { stay: true });
+  }, [loading, notify]);
+  useEffect(() => {
+    if (replays[queue[0]?.id ?? ""] === "error") notify(messageFor("recording_file_missing"));
+    // Only the replay of the card on top matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue[0]?.id, replays[queue[0]?.id ?? ""]]);
 
   /** Load pages until the buffer is full or there is nothing more. Own recordings are left out: nobody reviews their own. */
   const fill = useCallback(async () => {
@@ -200,6 +211,15 @@ function Swipe() {
   });
 
   const busy = !current;
+  const empty = !loading && !current;
+
+  /** Start again from the first page. */
+  function reload() {
+    loader.current = { statuses: [...STATUSES], cursors: {}, busy: false };
+    known.current.clear();
+    setLoading(true);
+    void fill();
+  }
   return (
     <main className="screen review">
       <div
@@ -208,6 +228,7 @@ function Swipe() {
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
+        onClick={() => empty && setEmptyClosed(false)}
         onPointerCancel={() => {
           start.current = null;
           resetCard(true);
@@ -215,12 +236,9 @@ function Swipe() {
       >
         <section className="panel" aria-label="Vídeo de referência">
           {sign && <video key={sign.id} src={sign.video_url} autoPlay loop muted playsInline />}
-          {loading && <p className="panel__note">Carregando…</p>}
-          {!loading && !current && <p className="panel__note">Nenhuma gravação para analisar agora.</p>}
         </section>
         <section className="panel" aria-label="Gravação a analisar">
           {replay && replay !== "error" && replay !== "loading" && <Player replay={replay} />}
-          {current && replay === "error" && <p className="panel__note">{messageFor("recording_file_missing")}</p>}
           <div className="panel__fade" />
         </section>
         {current && <h1 className="sign-name">{sign?.name ?? ""}</h1>}
@@ -236,6 +254,12 @@ function Swipe() {
         <RoundButton size="sm" bigIcon label="Informações" disabled={busy} onClick={() => setInfo(true)}><IconInfoSmall aria-hidden="true" /></RoundButton>
       </div>
 
+      {empty && !emptyClosed && (
+        <Sheet title="Nada para analisar" onClose={() => setEmptyClosed(true)}>
+          <p>Não há gravações esperando análise agora.</p>
+          <button type="button" className="button button--primary" onClick={reload}>Atualizar</button>
+        </Sheet>
+      )}
       {rejecting && (
         <Sheet title="Por que rejeitar?" onClose={() => setRejecting(false)}>
           {(Object.keys(REJECTION_REASON_TEXT) as RejectionReason[]).map((reason) => (

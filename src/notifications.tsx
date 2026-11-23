@@ -12,11 +12,16 @@ const FIRST_BANNERS = 2;
 interface Banner {
   id: number;
   title: string;
+  /** The banner stays until its owner dismisses it. */
+  stay: boolean;
 }
 
 interface Value {
-  /** Show a short message at the top. It goes away by itself. */
-  notify(title: string): void;
+  /**
+   * Show a message at the top. It goes away by itself, unless `stay` is true.
+   * The function that it returns removes the message, for a message with `stay`.
+   */
+  notify(title: string, options?: { stay?: boolean }): () => void;
 }
 
 const NotificationsContext = createContext<Value | null>(null);
@@ -42,19 +47,24 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const seen = useRef<Set<string> | null>(null);
   const timer = useRef<number>(0);
 
-  const showing = useRef(false);
+  const current = useRef<Banner | null>(null);
 
   const showNext = useCallback(() => {
     window.clearTimeout(timer.current);
     const next = queue.current.shift() ?? null;
-    showing.current = next !== null;
+    current.current = next;
     setBanner(next);
-    if (next) timer.current = window.setTimeout(showNext, BANNER_MS);
+    if (next && !next.stay) timer.current = window.setTimeout(showNext, BANNER_MS);
   }, []);
 
-  const notify = useCallback((title: string) => {
-    queue.current.push({ id: nextId.current++, title });
-    if (!showing.current) showNext();
+  const notify = useCallback((title: string, options?: { stay?: boolean }) => {
+    const item: Banner = { id: nextId.current++, title, stay: Boolean(options?.stay) };
+    queue.current.push(item);
+    if (!current.current) showNext();
+    return () => {
+      queue.current = queue.current.filter((other) => other.id !== item.id);
+      if (current.current?.id === item.id) showNext();
+    };
   }, [showNext]);
 
   const refresh = useCallback(async () => {
