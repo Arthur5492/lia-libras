@@ -33,7 +33,6 @@ ui-debug.log
 # Training data and output
 training/data/
 training/out/
-public/demo-model/
 training/.convert-env/
 public/mediapipe/
 signs-import.csv

@@ -1,8 +1,8 @@
-// The 196 features of the demo model. They come from the image landmarks, as in lstm_libras/features.py.
-// This is not the feature set of the training folder (that one uses the world landmarks).
-import { HAND_DIMS, HAND_POINTS, LEFT, POSE_DIMS, RIGHT, type Capture } from "../../../shared/capture";
+// The 196 features of the first model (feature version "image-v1"). They come from the image landmarks, as in the
+// feature code of the first training project. The training folder of this repository uses the world landmarks instead.
+import { HAND_DIMS, HAND_POINTS, LEFT, POSE_DIMS, RIGHT, type Capture } from "../../shared/capture";
 
-export const DEMO_FEATURE_SIZE = 196;
+export const IMAGE_FEATURE_SIZE = 196;
 const POSE_INDICES = Array.from({ length: 14 }, (_, i) => 11 + i);
 const EPS = 1e-6;
 const FINGERS: [number, number, number][] = [[5, 6, 8], [9, 10, 12], [13, 14, 16], [17, 18, 20]];
@@ -54,7 +54,7 @@ function normalizedHand(hand: Vec[] | null): number[] {
 
 /** Features of one frame. The hand assignment (wrist rule) must be done before. */
 export function frameFeatures(capture: Capture, i: number): Float32Array {
-  const out = new Float32Array(DEMO_FEATURE_SIZE);
+  const out = new Float32Array(IMAGE_FEATURE_SIZE);
   const left = handAt(capture, LEFT, i);
   const right = handAt(capture, RIGHT, i);
   let pose: number[] = new Array(14 * 3).fill(0);

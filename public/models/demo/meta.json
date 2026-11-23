@@ -1,0 +1,9 @@
+{
+ "name": "Modelo de teste",
+ "feature_version": "image-v1",
+ "frames": 20,
+ "threshold": 0.9,
+ "stability": 5,
+ "infer_every": 2,
+ "hand_lost_grace": 30
+}
