@@ -37,6 +37,11 @@ export class Recognizer {
     private options: RecognizerOptions,
   ) {}
 
+  /** Change the numbers while the recognizer runs. The number of frames of the window cannot change. */
+  setOptions(options: Partial<Omit<RecognizerOptions, "frames">>): void {
+    this.options = { ...this.options, ...options };
+  }
+
   reset(): void {
     this.window = [];
     this.predictions = [];

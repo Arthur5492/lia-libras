@@ -95,4 +95,13 @@ describe("Recognizer", () => {
     expect(progress[progress.length - 1]).toBe(1);
     expect([...progress].sort((a, b) => a - b)).toEqual(progress);
   });
+
+  test("the numbers can change while it runs", () => {
+    const { recognizer } = setup([[0.95, 0.05]], { ...OPTIONS, stability: 6 });
+    // With 6 equal predictions needed, a sign is not confirmed in the first 8 frames.
+    expect(feed(recognizer, 8).every((w) => w === null)).toBe(true);
+    recognizer.reset();
+    recognizer.setOptions({ stability: 2 });
+    expect(feed(recognizer, 8, 1000).filter((w) => w !== null)).toEqual([0]);
+  });
 });
